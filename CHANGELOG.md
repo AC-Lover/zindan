@@ -1,3 +1,12 @@
+1.5.6 (259)
+===
+
+**APK:** `Zindan-1.5.6-(259)-debug.apk`
+
+- Always-on VPN / lockdown VPN guard: public DevicePolicyManager checks where Zindan is profile/device owner, with a safe manual-check fallback elsewhere.
+- User warning with **Open VPN settings** action when Always-on VPN or lockdown mode may interfere with Anti Spy launch/install/VPN-permission flows.
+- Prompt throttling by state signature and time, so unchanged Always-on VPN state does not nag continuously.
+- User guide updated with Always-on VPN behavior and limitations.
 1.5.5 (258)
 ===
 

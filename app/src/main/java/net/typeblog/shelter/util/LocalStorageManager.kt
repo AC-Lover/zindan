@@ -127,6 +127,12 @@ class LocalStorageManager private constructor(context: Context) {
         const val PREF_VPN_WATCH_HEARTBEAT_WORK = "vpn_watch_heartbeat_work"
         const val PREF_VPN_WATCH_VPN_WORK = "vpn_watch_vpn_work"
 
+        /** Always-on VPN warning state; UI only, no hidden APIs. */
+        const val PREF_ALWAYS_ON_VPN_LAST_SIGNATURE = "always_on_vpn_last_signature"
+        const val PREF_ALWAYS_ON_VPN_LAST_PROMPT_SIGNATURE =
+            "always_on_vpn_last_prompt_signature"
+        const val PREF_ALWAYS_ON_VPN_LAST_PROMPT_AT = "always_on_vpn_last_prompt_at"
+
         private const val LIST_DIVIDER = ","
         private const val PREFS_NAME = "prefs"
 

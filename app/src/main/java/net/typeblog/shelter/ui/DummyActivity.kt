@@ -28,6 +28,7 @@ import net.typeblog.shelter.services.IAppInstallCallback
 import net.typeblog.shelter.services.IFileShuttleService
 import net.typeblog.shelter.services.IFileShuttleServiceCallback
 import net.typeblog.shelter.util.AntiSpyLaunchGate
+import net.typeblog.shelter.util.AlwaysOnVpnGuard
 import net.typeblog.shelter.util.AntiSpyManager
 import net.typeblog.shelter.util.AntiSpyVpnGuard
 import net.typeblog.shelter.util.AuthenticationUtility
@@ -646,30 +647,12 @@ class DummyActivity : Activity() {
                 finish()
                 return
             }
-            if (!ensureAntiSpyVpnPermissionThenLaunch()) {
-                return
-            }
-            val proceed = Runnable {
-                forwardUnfreezeAppToWorkProfile(packageName)
-                finish()
-            }
-            if (AntiSpyLaunchGate.shouldApplyVpnGate(packageName)) {
-                AntiSpyLaunchGate.runBeforeLaunch(
-                    this, LocalStorageManager.getInstance(), packageName,
-                    proceed,
-                    { reason ->
-                        if (reason == AntiSpyLaunchGate.REASON_VPN_PERMISSION_REQUIRED) {
-                            if (ensureAntiSpyVpnPermissionThenLaunch()) {
-                                actionUnfreezeApp()
-                            }
-                            return@runBeforeLaunch
-                        }
-                        finish()
-                    }
-                )
-            } else {
-                proceed.run()
-            }
+            AlwaysOnVpnGuard.runOrWarn(
+                this,
+                AlwaysOnVpnGuard.Action.LAUNCH_APP,
+                Runnable { actionUnfreezeAppAfterAlwaysOnCheck(packageName) },
+                Runnable { finish() },
+            )
             return
         }
 
@@ -685,6 +668,32 @@ class DummyActivity : Activity() {
         finish()
     }
 
+    private fun actionUnfreezeAppAfterAlwaysOnCheck(packageName: String) {
+        if (!ensureAntiSpyVpnPermissionThenLaunch()) {
+            return
+        }
+        val proceed = Runnable {
+            forwardUnfreezeAppToWorkProfile(packageName)
+            finish()
+        }
+        if (AntiSpyLaunchGate.shouldApplyVpnGate(packageName)) {
+            AntiSpyLaunchGate.runBeforeLaunch(
+                this, LocalStorageManager.getInstance(), packageName,
+                proceed,
+                { reason ->
+                    if (reason == AntiSpyLaunchGate.REASON_VPN_PERMISSION_REQUIRED) {
+                        if (ensureAntiSpyVpnPermissionThenLaunch()) {
+                            actionUnfreezeApp()
+                        }
+                        return@runBeforeLaunch
+                    }
+                    finish()
+                }
+            )
+        } else {
+            proceed.run()
+        }
+    }
     private fun forwardUnfreezeAppToWorkProfile(packageName: String) {
         val forwardIntent = Intent(UNFREEZE_APP)
         Utility.transferIntentToProfile(this, forwardIntent)
@@ -695,33 +704,42 @@ class DummyActivity : Activity() {
     private fun actionPublicUnfreezeAll() {
         if (!isProfileOwner) {
             if (forwardBatchToMainActivityIfVisible(PUBLIC_UNFREEZE_ALL)) return
-            if (!ensureAntiSpyVpnPermissionThenLaunch()) {
-                return
-            }
-            AntiSpyLaunchGate.runBeforeLaunch(
-                this, LocalStorageManager.getInstance(), "",
-                {
-                    val forwardIntent = Intent(UNFREEZE_ALL_IN_LIST)
-                    Utility.transferIntentToProfile(this, forwardIntent)
-                    val list = LocalStorageManager.getInstance()
-                        .getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE)
-                    forwardIntent.putExtra("list", list)
-                    startActivity(forwardIntent)
-                    finishBatchShortcutFlow()
-                },
-                { reason ->
-                    if (reason == AntiSpyLaunchGate.REASON_VPN_PERMISSION_REQUIRED) {
-                        if (ensureAntiSpyVpnPermissionThenLaunch()) {
-                            actionPublicUnfreezeAll()
-                        }
-                        return@runBeforeLaunch
-                    }
-                    finish()
-                }
+            AlwaysOnVpnGuard.runOrWarn(
+                this,
+                AlwaysOnVpnGuard.Action.LAUNCH_APP,
+                Runnable { actionPublicUnfreezeAllAfterAlwaysOnCheck() },
+                Runnable { finish() },
             )
         } else {
             throw RuntimeException("unimplemented")
         }
+    }
+
+    private fun actionPublicUnfreezeAllAfterAlwaysOnCheck() {
+        if (!ensureAntiSpyVpnPermissionThenLaunch()) {
+            return
+        }
+        AntiSpyLaunchGate.runBeforeLaunch(
+            this, LocalStorageManager.getInstance(), "",
+            {
+                val forwardIntent = Intent(UNFREEZE_ALL_IN_LIST)
+                Utility.transferIntentToProfile(this, forwardIntent)
+                val list = LocalStorageManager.getInstance()
+                    .getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE)
+                forwardIntent.putExtra("list", list)
+                startActivity(forwardIntent)
+                finishBatchShortcutFlow()
+            },
+            { reason ->
+                if (reason == AntiSpyLaunchGate.REASON_VPN_PERMISSION_REQUIRED) {
+                    if (ensureAntiSpyVpnPermissionThenLaunch()) {
+                        actionPublicUnfreezeAll()
+                    }
+                    return@runBeforeLaunch
+                }
+                finish()
+            }
+        )
     }
 
     private fun actionFreezeAllInList() {

@@ -44,6 +44,7 @@ import net.typeblog.shelter.services.IShelterService
 import net.typeblog.shelter.services.IStartActivityProxy
 import net.typeblog.shelter.services.KillerService
 import net.typeblog.shelter.util.AntiSpyLaunchGate
+import net.typeblog.shelter.util.AlwaysOnVpnGuard
 import net.typeblog.shelter.util.AntiSpyManager
 import net.typeblog.shelter.util.ApplicationInfoWrapper
 import net.typeblog.shelter.util.LocalStorageManager
@@ -473,6 +474,7 @@ class MainActivity : AppCompatActivity() {
         isResumed = true
         visibleInstance = this
         AntiSpyManager.syncVpnWatchEverywhere(this)
+        AlwaysOnVpnGuard.maybeWarnStateChanged(this)
         if (pendingVpnBlockReason != 0) {
             val reason = pendingVpnBlockReason
             pendingVpnBlockReason = 0
@@ -550,40 +552,53 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun runAfterVpnGateCleared(packageName: String, forceGate: Boolean, action: Runnable) {
-        AntiSpyLaunchGate.runBeforeAutoFreezeAccess(
+        AlwaysOnVpnGuard.runOrWarn(
             this,
-            LocalStorageManager.getInstance(),
-            packageName,
-            forceGate,
-            action,
-            AntiSpyLaunchGate.BlockedCallback { reason ->
-                pendingVpnBlockReason = reason
-                showAntiSpyVpnLaunchBlockedDialog(reason)
-                if (reason == AntiSpyLaunchGate.REASON_VPN_PERMISSION_REQUIRED) {
-                    requestAntiSpyVpnPermission()
-                }
-            }
+            AlwaysOnVpnGuard.Action.LAUNCH_APP,
+            Runnable {
+                AntiSpyLaunchGate.runBeforeAutoFreezeAccess(
+                    this,
+                    LocalStorageManager.getInstance(),
+                    packageName,
+                    forceGate,
+                    action,
+                    AntiSpyLaunchGate.BlockedCallback { reason ->
+                        pendingVpnBlockReason = reason
+                        showAntiSpyVpnLaunchBlockedDialog(reason)
+                        if (reason == AntiSpyLaunchGate.REASON_VPN_PERMISSION_REQUIRED) {
+                            requestAntiSpyVpnPermission()
+                        }
+                    }
+                )
+            },
         )
     }
 
     /** Anti Spy: block APK install while VPN is active (do not displace the tunnel). */
     private fun runInstallApkAfterVpnGateCleared() {
         pendingApkInstallAfterVpnGate = true
-        AntiSpyLaunchGate.runBeforeAutoFreezeAccess(
+        AlwaysOnVpnGuard.runOrWarn(
             this,
-            LocalStorageManager.getInstance(),
-            "",
-            forceGate = true,
+            AlwaysOnVpnGuard.Action.INSTALL_APK,
             Runnable {
-                pendingApkInstallAfterVpnGate = false
-                selectApk.launch(null)
+                AntiSpyLaunchGate.runBeforeAutoFreezeAccess(
+                    this,
+                    LocalStorageManager.getInstance(),
+                    "",
+                    forceGate = true,
+                    Runnable {
+                        pendingApkInstallAfterVpnGate = false
+                        selectApk.launch(null)
+                    },
+                    AntiSpyLaunchGate.BlockedCallback { reason ->
+                        pendingVpnBlockReason = reason
+                        showAntiSpyVpnLaunchBlockedDialog(reason)
+                        pendingApkInstallAfterVpnGate = false
+                    },
+                    AntiSpyLaunchGate.VpnGateMode.BLOCK_IF_ACTIVE,
+                )
             },
-            AntiSpyLaunchGate.BlockedCallback { reason ->
-                pendingVpnBlockReason = reason
-                showAntiSpyVpnLaunchBlockedDialog(reason)
-                pendingApkInstallAfterVpnGate = false
-            },
-            AntiSpyLaunchGate.VpnGateMode.BLOCK_IF_ACTIVE,
+            Runnable { pendingApkInstallAfterVpnGate = false },
         )
     }
 
@@ -603,6 +618,14 @@ class MainActivity : AppCompatActivity() {
             pendingVpnBlockReason = AntiSpyLaunchGate.REASON_VPN_PERMISSION_REQUIRED
             return
         }
+        AlwaysOnVpnGuard.runOrWarn(
+            this,
+            AlwaysOnVpnGuard.Action.VPN_PERMISSION,
+            Runnable { requestAntiSpyVpnPermissionUnchecked() },
+        )
+    }
+
+    private fun requestAntiSpyVpnPermissionUnchecked() {
         val prepare = VpnService.prepare(this)
         if (prepare == null) {
             retryPendingLaunchAfterVpnPermission()
@@ -815,6 +838,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun onApkSelected(uri: Uri?) {
         if (uri == null) return
+        AlwaysOnVpnGuard.runOrWarn(
+            this,
+            AlwaysOnVpnGuard.Action.INSTALL_APK,
+            Runnable { installSelectedApkAfterVpnChecks(uri) },
+            Runnable { pendingApkInstallAfterVpnGate = false },
+        )
+    }
+
+    private fun installSelectedApkAfterVpnChecks(uri: Uri) {
         if (AntiSpyLaunchGate.needsVpnClear(this, LocalStorageManager.getInstance())) {
             pendingApkInstallAfterVpnGate = true
             showAntiSpyVpnLaunchBlockedDialog(AntiSpyLaunchGate.REASON_VPN_STILL_ACTIVE)

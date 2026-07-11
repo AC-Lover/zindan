@@ -70,6 +70,13 @@
     <string name="anti_spy_vpn_prompt_permission_text">Zindan needs VPN permission once in the main profile to interrupt external VPN before the freeze prompt. Open Zindan and allow VPN access, then try again.</string>
     <string name="anti_spy_vpn_prompt_failed_title">Could not interrupt VPN</string>
     <string name="anti_spy_vpn_prompt_failed_text">External VPN is still active. Open Zindan, ensure VPN permission is granted, or turn VPN off manually before batch-freezing.</string>
+    <string name="always_on_vpn_warning_title">Always-on VPN is enabled</string>
+    <string name="always_on_vpn_warning_text">В системе включён Always-on VPN. Эта настройка может мешать корректной работе. Отключите Always-on VPN в настройках Android.\n\nVPN package: %1$s\nLockdown mode: %2$s\n\nОткрыть настройки VPN?</string>
+    <string name="always_on_vpn_manual_check_text">Zindan cannot read the Always-on VPN setting in this profile using public Android APIs. If Always-on VPN or Block connections without VPN is enabled, it may interfere with correct operation.\n\nPlease check it manually in Android VPN settings.\n\nОткрыть настройки VPN?</string>
+    <string name="always_on_vpn_open_settings">Открыть настройки VPN</string>
+    <string name="always_on_vpn_unknown_package">unknown</string>
+    <string name="always_on_vpn_lockdown_on">on</string>
+    <string name="always_on_vpn_lockdown_off">off</string>
     <string name="allow_cross_profile_widgets">Allow Widgets in Main Profile</string>
     <string name="allow_cross_profile_interaction">Allow Cross-Profile Interaction</string>
 
