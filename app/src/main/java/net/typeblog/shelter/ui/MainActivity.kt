@@ -20,6 +20,7 @@ import android.os.Looper
 import android.os.RemoteException
 import android.text.TextUtils
 import android.util.TypedValue
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import net.typeblog.shelter.util.ZindanToast
@@ -44,7 +45,7 @@ import net.typeblog.shelter.services.IShelterService
 import net.typeblog.shelter.services.IStartActivityProxy
 import net.typeblog.shelter.services.KillerService
 import net.typeblog.shelter.util.AntiSpyLaunchGate
-import net.typeblog.shelter.util.AlwaysOnVpnGuard
+import net.typeblog.shelter.util.AuthenticationUtility
 import net.typeblog.shelter.util.AntiSpyManager
 import net.typeblog.shelter.util.ApplicationInfoWrapper
 import net.typeblog.shelter.util.LocalStorageManager
@@ -99,6 +100,10 @@ class MainActivity : AppCompatActivity() {
     private val workListPollHandler = Handler(Looper.getMainLooper())
     private var workPackageSnapshot: Set<String>? = null
     private var workListSignature: String? = null
+    private var authRecoveryAttempted = false
+    private var workProfileRecoveryInProgress = false
+    private var pendingManualRecovery = false
+    private var pendingRecoverySuccessToast = false
 
     private val appListRefreshReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -139,6 +144,8 @@ class MainActivity : AppCompatActivity() {
             finish()
             return
         }
+
+        pendingManualRecovery = intent?.action == ACTION_RESTORE_WORK_PROFILE_CONNECTION
 
         if (finishIfBackgroundShortcutLaunch(intent)) {
             return
@@ -224,25 +231,40 @@ class MainActivity : AppCompatActivity() {
 
     private fun init() {
         val s = storage!!
-        if (s.getBoolean(LocalStorageManager.PREF_IS_SETTING_UP) && !Utility.isWorkProfileAvailable(this)) {
-            resumeSetup.launch(null)
-        } else if (!s.getBoolean(LocalStorageManager.PREF_HAS_SETUP)) {
-            startSetup.launch(null)
-        } else {
-            if (AntiSpyManager.shouldRunStartupFreeze(s)) {
-                Utility.trimApplicationCache(this)
-            }
-            handleBatchShortcutIntent(intent)
-            AntiSpyManager.onApplicationLaunch(s, BuildConfig.VERSION_CODE)
-            requestAntiSpyNotificationPermissionIfNeeded()
-            SettingsManager.getInstance().applyAll()
-            bindServices()
+        s.backupAutoFreezeListIfPresent()
+        val setupPending = s.getBoolean(LocalStorageManager.PREF_IS_SETTING_UP)
+        val setupComplete = s.getBoolean(LocalStorageManager.PREF_HAS_SETUP) ||
+            Utility.isWorkProfileAvailable(this)
+        if (!setupComplete) {
+            showExistingWorkProfileRecoveryDialog(setupPending)
+            return
+        }
+
+        if (AntiSpyManager.shouldRunStartupFreeze(s)) {
+            Utility.trimApplicationCache(this)
+        }
+        handleBatchShortcutIntent(intent)
+        AntiSpyManager.onApplicationLaunch(s, BuildConfig.VERSION_CODE)
+        requestAntiSpyNotificationPermissionIfNeeded()
+        SettingsManager.getInstance().applyAll()
+        bindServices()
+        if (pendingManualRecovery) {
+            window.decorView.post { showManualWorkProfileRecoveryDialog() }
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.action == ACTION_RESTORE_WORK_PROFILE_CONNECTION) {
+            pendingManualRecovery = true
+            if (serviceMain != null) {
+                showManualWorkProfileRecoveryDialog()
+            } else {
+                init()
+            }
+            return
+        }
         handleBatchShortcutIntent(intent)
     }
 
@@ -250,11 +272,54 @@ class MainActivity : AppCompatActivity() {
         if (result) init() else finish()
     }
 
+    private fun showExistingWorkProfileRecoveryDialog(setupPending: Boolean) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.work_profile_existing_recovery_title)
+            .setMessage(R.string.work_profile_existing_recovery_text)
+            .setPositiveButton(R.string.restore_work_profile_connection) { _, _ ->
+                startExistingWorkProfileRecovery()
+            }
+            .setNegativeButton(R.string.work_profile_start_setup_anyway) { _, _ ->
+                if (setupPending) resumeSetup.launch(null) else startSetup.launch(null)
+            }
+            .setNeutralButton(android.R.string.cancel) { _, _ -> finish() }
+            .setOnCancelListener { finish() }
+            .show()
+    }
+
+    private fun showManualWorkProfileRecoveryDialog() {
+        pendingManualRecovery = false
+        AlertDialog.Builder(this)
+            .setTitle(R.string.work_profile_recovery_title)
+            .setMessage(R.string.work_profile_recovery_manual_text)
+            .setPositiveButton(R.string.work_profile_recovery_restore) { _, _ ->
+                startExistingWorkProfileRecovery()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun startExistingWorkProfileRecovery() {
+        pendingManualRecovery = false
+        workProfileRecoveryInProgress = true
+        pendingRecoverySuccessToast = false
+        authRecoveryAttempted = false
+        if (serviceMain != null) {
+            requestWorkProfileAuthRecovery()
+        } else {
+            bindServices()
+        }
+    }
+
     private fun bindServices() {
         (application as ShelterApplication).bindShelterService(object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName, service: IBinder) {
                 serviceMain = IShelterService.Stub.asInterface(service)
-                tryStartWorkService()
+                if (workProfileRecoveryInProgress) {
+                    requestWorkProfileAuthRecovery()
+                } else {
+                    tryStartWorkService()
+                }
             }
 
             override fun onServiceDisconnected(name: ComponentName) {
@@ -269,9 +334,13 @@ class MainActivity : AppCompatActivity() {
         }
         try {
             Utility.transferIntentToProfile(this, intent)
-        } catch (_: IllegalStateException) {
-            storage!!.setBoolean(LocalStorageManager.PREF_HAS_SETUP, false)
-            ZindanToast.show(this, getString(R.string.work_profile_not_found), android.widget.Toast.LENGTH_LONG)
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "work profile intent unavailable; keeping setup state", e)
+            ZindanToast.show(
+                this,
+                getString(R.string.work_profile_unavailable_retry),
+                android.widget.Toast.LENGTH_LONG,
+            )
             finish()
             return
         }
@@ -280,10 +349,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun tryStartWorkServiceCb(result: ActivityResult) {
         if (result.resultCode == RESULT_OK) {
+            storage!!.setBoolean(LocalStorageManager.PREF_IS_SETTING_UP, false)
+            storage!!.setBoolean(LocalStorageManager.PREF_HAS_SETUP, true)
             bindWorkService()
         } else {
-            ZindanToast.show(this, getString(R.string.work_mode_disabled), android.widget.Toast.LENGTH_LONG)
-            finish()
+            Log.w(TAG, "signed work-profile probe failed; attempting auth recovery")
+            requestWorkProfileAuthRecovery()
         }
     }
 
@@ -300,6 +371,10 @@ class MainActivity : AppCompatActivity() {
             val extra = result.data!!.getBundleExtra("extra")
             val binder = extra!!.getBinder("service")
             serviceWork = IShelterService.Stub.asInterface(binder)
+            val showRecoveryToast = workProfileRecoveryInProgress || pendingRecoverySuccessToast
+            authRecoveryAttempted = false
+            workProfileRecoveryInProgress = false
+            pendingRecoverySuccessToast = false
             registerStartActivityProxies()
             startKiller()
             window.decorView.post {
@@ -307,8 +382,51 @@ class MainActivity : AppCompatActivity() {
                 AntiSpyManager.syncVpnWatchEverywhere(this@MainActivity)
                 runPendingBatchShortcutAction()
                 startWorkListPolling()
+                if (showRecoveryToast) {
+                    ZindanToast.show(this@MainActivity, R.string.work_profile_recovery_success)
+                }
             }
             buildView()
+        } else if (authRecoveryAttempted && result.resultCode == RESULT_OK) {
+            authRecoveryAttempted = false
+            pendingRecoverySuccessToast = true
+            bindWorkService()
+        } else {
+            requestWorkProfileAuthRecovery()
+        }
+    }
+
+    private fun requestWorkProfileAuthRecovery() {
+        workProfileRecoveryInProgress = true
+        if (authRecoveryAttempted) {
+            workProfileRecoveryInProgress = false
+            pendingRecoverySuccessToast = false
+            ZindanToast.show(
+                this,
+                getString(R.string.work_profile_recovery_failed),
+                android.widget.Toast.LENGTH_LONG,
+            )
+            finish()
+            return
+        }
+        authRecoveryAttempted = true
+        val intent = Intent(DummyActivity.RECOVER_AUTH_KEY).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            putExtra(DummyActivity.EXTRA_RECOVERY_AUTH_KEY, AuthenticationUtility.getOrCreateKey())
+        }
+        try {
+            Utility.transferIntentToProfileUnsigned(this, intent)
+            bindWorkService.launch(intent)
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "auth recovery launch failed", e)
+            workProfileRecoveryInProgress = false
+            pendingRecoverySuccessToast = false
+            ZindanToast.show(
+                this,
+                getString(R.string.work_profile_unavailable_retry),
+                android.widget.Toast.LENGTH_LONG,
+            )
+            finish()
         }
     }
 
@@ -474,7 +592,6 @@ class MainActivity : AppCompatActivity() {
         isResumed = true
         visibleInstance = this
         AntiSpyManager.syncVpnWatchEverywhere(this)
-        AlwaysOnVpnGuard.maybeWarnStateChanged(this)
         if (pendingVpnBlockReason != 0) {
             val reason = pendingVpnBlockReason
             pendingVpnBlockReason = 0
@@ -552,53 +669,40 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun runAfterVpnGateCleared(packageName: String, forceGate: Boolean, action: Runnable) {
-        AlwaysOnVpnGuard.runOrWarn(
+        AntiSpyLaunchGate.runBeforeAutoFreezeAccess(
             this,
-            AlwaysOnVpnGuard.Action.LAUNCH_APP,
-            Runnable {
-                AntiSpyLaunchGate.runBeforeAutoFreezeAccess(
-                    this,
-                    LocalStorageManager.getInstance(),
-                    packageName,
-                    forceGate,
-                    action,
-                    AntiSpyLaunchGate.BlockedCallback { reason ->
-                        pendingVpnBlockReason = reason
-                        showAntiSpyVpnLaunchBlockedDialog(reason)
-                        if (reason == AntiSpyLaunchGate.REASON_VPN_PERMISSION_REQUIRED) {
-                            requestAntiSpyVpnPermission()
-                        }
-                    }
-                )
-            },
+            LocalStorageManager.getInstance(),
+            packageName,
+            forceGate,
+            action,
+            AntiSpyLaunchGate.BlockedCallback { reason ->
+                pendingVpnBlockReason = reason
+                showAntiSpyVpnLaunchBlockedDialog(reason)
+                if (reason == AntiSpyLaunchGate.REASON_VPN_PERMISSION_REQUIRED) {
+                    requestAntiSpyVpnPermission()
+                }
+            }
         )
     }
 
     /** Anti Spy: block APK install while VPN is active (do not displace the tunnel). */
     private fun runInstallApkAfterVpnGateCleared() {
         pendingApkInstallAfterVpnGate = true
-        AlwaysOnVpnGuard.runOrWarn(
+        AntiSpyLaunchGate.runBeforeAutoFreezeAccess(
             this,
-            AlwaysOnVpnGuard.Action.INSTALL_APK,
+            LocalStorageManager.getInstance(),
+            "",
+            forceGate = true,
             Runnable {
-                AntiSpyLaunchGate.runBeforeAutoFreezeAccess(
-                    this,
-                    LocalStorageManager.getInstance(),
-                    "",
-                    forceGate = true,
-                    Runnable {
-                        pendingApkInstallAfterVpnGate = false
-                        selectApk.launch(null)
-                    },
-                    AntiSpyLaunchGate.BlockedCallback { reason ->
-                        pendingVpnBlockReason = reason
-                        showAntiSpyVpnLaunchBlockedDialog(reason)
-                        pendingApkInstallAfterVpnGate = false
-                    },
-                    AntiSpyLaunchGate.VpnGateMode.BLOCK_IF_ACTIVE,
-                )
+                pendingApkInstallAfterVpnGate = false
+                selectApk.launch(null)
             },
-            Runnable { pendingApkInstallAfterVpnGate = false },
+            AntiSpyLaunchGate.BlockedCallback { reason ->
+                pendingVpnBlockReason = reason
+                showAntiSpyVpnLaunchBlockedDialog(reason)
+                pendingApkInstallAfterVpnGate = false
+            },
+            AntiSpyLaunchGate.VpnGateMode.BLOCK_IF_ACTIVE,
         )
     }
 
@@ -618,11 +722,7 @@ class MainActivity : AppCompatActivity() {
             pendingVpnBlockReason = AntiSpyLaunchGate.REASON_VPN_PERMISSION_REQUIRED
             return
         }
-        AlwaysOnVpnGuard.runOrWarn(
-            this,
-            AlwaysOnVpnGuard.Action.VPN_PERMISSION,
-            Runnable { requestAntiSpyVpnPermissionUnchecked() },
-        )
+        requestAntiSpyVpnPermissionUnchecked()
     }
 
     private fun requestAntiSpyVpnPermissionUnchecked() {
@@ -697,6 +797,10 @@ class MainActivity : AppCompatActivity() {
                 }
                 settingsIntent.putExtra("extras", extras)
                 startActivity(settingsIntent)
+                true
+            }
+            R.id.main_menu_restore_work_profile -> {
+                showManualWorkProfileRecoveryDialog()
                 true
             }
             R.id.main_menu_create_freeze_all_shortcut -> {
@@ -838,12 +942,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun onApkSelected(uri: Uri?) {
         if (uri == null) return
-        AlwaysOnVpnGuard.runOrWarn(
-            this,
-            AlwaysOnVpnGuard.Action.INSTALL_APK,
-            Runnable { installSelectedApkAfterVpnChecks(uri) },
-            Runnable { pendingApkInstallAfterVpnGate = false },
-        )
+        installSelectedApkAfterVpnChecks(uri)
     }
 
     private fun installSelectedApkAfterVpnChecks(uri: Uri) {
@@ -900,12 +999,15 @@ class MainActivity : AppCompatActivity() {
         const val ACTION_BATCH_UNFREEZE_ALL = "net.typeblog.shelter.action.BATCH_UNFREEZE_ALL"
         const val ACTION_SHOW_BATCH_TOAST = "net.typeblog.shelter.action.SHOW_BATCH_TOAST"
         const val ACTION_REFRESH_APP_LISTS = "net.typeblog.shelter.action.REFRESH_APP_LISTS"
+        const val ACTION_RESTORE_WORK_PROFILE_CONNECTION =
+            "net.typeblog.shelter.action.RESTORE_WORK_PROFILE_CONNECTION"
         const val EXTRA_TOAST_RES_ID = "toast_res_id"
         const val BROADCAST_CONTEXT_MENU_CLOSED =
             "net.typeblog.shelter.broadcast.CONTEXT_MENU_CLOSED"
         const val BROADCAST_SEARCH_FILTER_CHANGED =
             "net.typeblog.shelter.broadcast.SEARCH_FILTER_CHANGED"
         private val APP_LIST_FRAGMENT_TAGS = arrayOf("f0", "f1")
+        private const val TAG = "MainActivity"
         private const val APP_LIST_INSTALL_REFRESH_MS = 2000L
         private const val WORK_LIST_POLL_INTERVAL_MS = 1500L
     }

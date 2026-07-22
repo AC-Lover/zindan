@@ -106,6 +106,9 @@ class SettingsFragment : PreferenceFragmentCompat(), Preference.OnPreferenceChan
         prefVpnWatchHealth!!.setOnPreferenceClickListener(this::restartVpnWatch)
         updateVpnWatchHealthSummary()
 
+        findPreference<Preference>(SETTINGS_RESTORE_WORK_PROFILE)!!
+            .setOnPreferenceClickListener(this::restoreWorkProfileConnection)
+
         if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
             prefCrossProfileFileChooser!!.isEnabled = false
         }
@@ -194,6 +197,15 @@ class SettingsFragment : PreferenceFragmentCompat(), Preference.OnPreferenceChan
         AntiSpyVpnWatchHealth.restartMonitoring(requireContext())
         updateVpnWatchHealthSummary()
         ZindanToast.show(requireContext(), R.string.settings_vpn_watch_restarted)
+        return true
+    }
+
+    private fun restoreWorkProfileConnection(pref: Preference): Boolean {
+        val intent = Intent(requireContext(), MainActivity::class.java).apply {
+            action = MainActivity.ACTION_RESTORE_WORK_PROFILE_CONNECTION
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        startActivity(intent)
         return true
     }
 
@@ -311,6 +323,7 @@ class SettingsFragment : PreferenceFragmentCompat(), Preference.OnPreferenceChan
         private const val SETTINGS_CREATE_FREEZE_ALL_SHORTCUT = "settings_create_freeze_all_shortcut"
         private const val SETTINGS_CREATE_UNFREEZE_ALL_SHORTCUT = "settings_create_unfreeze_all_shortcut"
         private const val SETTINGS_VPN_WATCH_HEALTH = "settings_vpn_watch_health"
+        private const val SETTINGS_RESTORE_WORK_PROFILE = "settings_restore_work_profile"
 
         private val AUTO_FREEZE_DELAY_SECONDS = intArrayOf(0, 60, 2 * 60, 5 * 60)
     }

@@ -52,10 +52,12 @@ class AntiSpyVpnWatchService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        if (!ensureForeground()) {
+            return
+        }
         LocalStorageManager.initialize(applicationContext)
         Log.i(TAG, "onCreate pid=${Process.myPid()} work=${AntiSpyManager.isWorkProfile(this)}")
         connectivityManager = getSystemService(ConnectivityManager::class.java)
-        ensureForeground()
         registerVpnCallbacks()
         registerConnectivityReceiver()
         registerFreezeCompleteReceiver()
@@ -98,12 +100,11 @@ class AntiSpyVpnWatchService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        ensureForeground()
-        return START_STICKY
+        return if (ensureForeground()) START_STICKY else START_NOT_STICKY
     }
 
-    private fun ensureForeground() {
-        if (foregroundStarted) return
+    private fun ensureForeground(): Boolean {
+        if (foregroundStarted) return true
         try {
             val notification = Utility.buildNotification(
                 this,
@@ -111,16 +112,15 @@ class AntiSpyVpnWatchService : Service() {
                 getString(R.string.anti_spy_monitor_notification_title),
                 getString(R.string.anti_spy_monitor_notification_title),
                 getString(R.string.anti_spy_monitor_notification_text),
-                R.drawable.ic_lock_open_white_24dp,
+                R.drawable.ic_notification_zindan_24dp,
             )
             startForeground(NOTIFICATION_ID, notification)
             foregroundStarted = true
+            return true
         } catch (e: Exception) {
             Log.e(TAG, "startForeground failed", e)
-            if (!AntiSpyManager.isWorkProfile(this)) {
-                AntiSpyVpnWatchHealth.scheduleFgsRetry(applicationContext)
-            }
             stopSelf()
+            return false
         }
     }
 
@@ -293,10 +293,7 @@ class AntiSpyVpnWatchService : Service() {
     private fun isMainProfileWatcher(): Boolean = !AntiSpyManager.isWorkProfile(this)
 
     private fun postVpnStateAlert(textResId: Int) {
-        val title = getString(R.string.anti_spy_monitor_notification_title)
-        val text = getString(textResId)
-        ZindanToast.show(this, text)
-        Utility.postUserAlert(this, VPN_STATE_NOTIFICATION_ID, title, text)
+        ZindanToast.show(this, getString(textResId))
     }
 
     private fun maybeFreezeAllForVpn() {
@@ -360,7 +357,9 @@ class AntiSpyVpnWatchService : Service() {
 
     override fun onDestroy() {
         Log.i(TAG, "onDestroy")
-        scheduleRestartIfNeeded()
+        if (foregroundStarted) {
+            scheduleRestartIfNeeded()
+        }
         handler.removeCallbacks(freezeRunnable)
         handler.removeCallbacks(pollRunnable)
         connectivityReceiver?.let { receiver ->
@@ -435,7 +434,6 @@ class AntiSpyVpnWatchService : Service() {
     companion object {
         private const val TAG = "AntiSpyVpnWatch"
         private const val NOTIFICATION_ID = 0xe49d0
-        private const val VPN_STATE_NOTIFICATION_ID = 0xe49d1
         private const val VPN_POLL_MS = 2000L
 
         fun syncState(context: Context, allowBackgroundRetry: Boolean = true) {

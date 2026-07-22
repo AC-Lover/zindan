@@ -67,7 +67,12 @@ class LocalStorageManager private constructor(context: Context) {
         prefs().getBoolean(pref, defaultValue)
 
     fun setStringList(pref: String, list: Array<String>) {
-        prefs.edit().putString(pref, Utility.stringJoin(LIST_DIVIDER, list)).commit()
+        val value = Utility.stringJoin(LIST_DIVIDER, list)
+        val editor = prefs.edit().putString(pref, value)
+        if (pref == PREF_AUTO_FREEZE_LIST_WORK_PROFILE && list.isNotEmpty()) {
+            editor.putString(PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP, value)
+        }
+        editor.commit()
         prefs = prefs()
     }
 
@@ -81,8 +86,19 @@ class LocalStorageManager private constructor(context: Context) {
         } else {
             str + LIST_DIVIDER + newItem
         }
-        prefs.edit().putString(pref, str).commit()
+        val editor = prefs.edit().putString(pref, str)
+        if (pref == PREF_AUTO_FREEZE_LIST_WORK_PROFILE && !str.isNullOrEmpty()) {
+            editor.putString(PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP, str)
+        }
+        editor.commit()
         prefs = prefs()
+    }
+
+    fun backupAutoFreezeListIfPresent() {
+        val list = getStringList(PREF_AUTO_FREEZE_LIST_WORK_PROFILE)
+        if (list.isNotEmpty()) {
+            setStringList(PREF_AUTO_FREEZE_LIST_WORK_PROFILE, list)
+        }
     }
 
     fun removeFromStringList(pref: String, item: String) {
@@ -95,6 +111,8 @@ class LocalStorageManager private constructor(context: Context) {
         const val PREF_IS_SETTING_UP = "is_setting_up"
         const val PREF_HAS_SETUP = "has_setup"
         const val PREF_AUTO_FREEZE_LIST_WORK_PROFILE = "auto_freeze_list_work_profile"
+        const val PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP =
+            "auto_freeze_list_work_profile_backup"
         const val PREF_CROSS_PROFILE_FILE_CHOOSER = "cross_profile_file_chooser"
         const val PREF_AUTH_KEY = "auth_key"
         const val PREF_AUTO_FREEZE_SERVICE = "auto_freeze_service"
@@ -126,12 +144,6 @@ class LocalStorageManager private constructor(context: Context) {
         /** Written in work profile user (local diagnostics). */
         const val PREF_VPN_WATCH_HEARTBEAT_WORK = "vpn_watch_heartbeat_work"
         const val PREF_VPN_WATCH_VPN_WORK = "vpn_watch_vpn_work"
-
-        /** Always-on VPN warning state; UI only, no hidden APIs. */
-        const val PREF_ALWAYS_ON_VPN_LAST_SIGNATURE = "always_on_vpn_last_signature"
-        const val PREF_ALWAYS_ON_VPN_LAST_PROMPT_SIGNATURE =
-            "always_on_vpn_last_prompt_signature"
-        const val PREF_ALWAYS_ON_VPN_LAST_PROMPT_AT = "always_on_vpn_last_prompt_at"
 
         private const val LIST_DIVIDER = ","
         private const val PREFS_NAME = "prefs"

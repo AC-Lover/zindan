@@ -28,9 +28,9 @@ import net.typeblog.shelter.services.IAppInstallCallback
 import net.typeblog.shelter.services.IFileShuttleService
 import net.typeblog.shelter.services.IFileShuttleServiceCallback
 import net.typeblog.shelter.util.AntiSpyLaunchGate
-import net.typeblog.shelter.util.AlwaysOnVpnGuard
 import net.typeblog.shelter.util.AntiSpyManager
 import net.typeblog.shelter.util.AntiSpyVpnGuard
+import net.typeblog.shelter.util.AntiSpyVpnWatchHealth
 import net.typeblog.shelter.util.AuthenticationUtility
 import net.typeblog.shelter.util.AutoFreezeDefaults
 import net.typeblog.shelter.util.FileProviderProxy
@@ -46,8 +46,14 @@ import java.util.Date
 import java.util.UUID
 
 class DummyActivity : Activity() {
+    private data class PendingUnfreezeLaunch(
+        val packageName: String,
+        val linkedPackages: Array<String>,
+    )
+
     private var isProfileOwner = false
     private var policyManager: DevicePolicyManager? = null
+    private var pendingUnfreezeLaunch: PendingUnfreezeLaunch? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -114,7 +120,9 @@ class DummyActivity : Activity() {
             START_FILE_SHUTTLE, START_FILE_SHUTTLE_2 -> actionStartFileShuttle()
             SYNCHRONIZE_PREFERENCE -> actionSynchronizePreference()
             SYNC_ANTI_SPY_VPN_WATCH -> actionSyncAntiSpyVpnWatch()
+            RECOVER_AUTH_KEY -> actionRecoverAuthKey()
             VPN_SESSION_COMPLETE -> actionVpnSessionComplete()
+            VPN_WATCH_HEARTBEAT -> actionVpnWatchHeartbeat()
             PACKAGEINSTALLER_CALLBACK -> handlePackageInstallerCallback(intent)
             else -> finish()
         }
@@ -198,6 +206,34 @@ class DummyActivity : Activity() {
         }
     }
 
+    private fun actionRecoverAuthKey() {
+        if (!isProfileOwner) {
+            finish()
+            return
+        }
+        val key = intent.getStringExtra(EXTRA_RECOVERY_AUTH_KEY)
+        if (key.isNullOrBlank()) {
+            finish()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.work_profile_recovery_title)
+            .setMessage(R.string.work_profile_recovery_text)
+            .setPositiveButton(R.string.work_profile_recovery_restore) { _, _ ->
+                AuthenticationUtility.replaceKey(key)
+                setResult(RESULT_OK)
+                finish()
+            }
+            .setNegativeButton(android.R.string.cancel) { _, _ ->
+                setResult(RESULT_CANCELED)
+                finish()
+            }
+            .setOnCancelListener {
+                setResult(RESULT_CANCELED)
+                finish()
+            }
+            .show()
+    }
     private fun actionStartService() {
         (application as ShelterApplication).bindShelterService(object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName, service: IBinder) {
@@ -437,19 +473,21 @@ class DummyActivity : Activity() {
         }
 
         if (!isProfileOwner) {
-            if (intent.getStringExtra("packageName") == null) {
+            val request = pendingUnfreezeLaunch ?: captureUnfreezeLaunchRequest(intent)
+            if (request == null) {
                 finish()
                 return
             }
+            pendingUnfreezeLaunch = request
             if (!ensureAntiSpyVpnPermissionThenLaunch()) {
                 return
             }
-            val packageName = requireNotNull(intent.getStringExtra("packageName"))
             val proceed = Runnable {
-                forwardUnfreezeAndLaunchToWorkProfile()
+                forwardUnfreezeAndLaunchToWorkProfile(request)
+                pendingUnfreezeLaunch = null
                 finish()
             }
-            if (AntiSpyLaunchGate.shouldApplyVpnGate(packageName)) {
+            if (AntiSpyLaunchGate.shouldApplyVpnGate(request.packageName)) {
                 runAntiSpyLaunchGate()
             } else {
                 proceed.run()
@@ -508,11 +546,17 @@ class DummyActivity : Activity() {
     }
 
     private fun runAntiSpyLaunchGate() {
+        val request = pendingUnfreezeLaunch ?: captureUnfreezeLaunchRequest(intent) ?: run {
+            finish()
+            return
+        }
+        pendingUnfreezeLaunch = request
         AntiSpyLaunchGate.runBeforeLaunch(
             this, LocalStorageManager.getInstance(),
-            requireNotNull(intent.getStringExtra("packageName")),
+            request.packageName,
             {
-                forwardUnfreezeAndLaunchToWorkProfile()
+                forwardUnfreezeAndLaunchToWorkProfile(request)
+                pendingUnfreezeLaunch = null
                 finish()
             },
             { reason ->
@@ -541,10 +585,21 @@ class DummyActivity : Activity() {
             .show()
     }
 
-    private fun forwardUnfreezeAndLaunchToWorkProfile() {
+    private fun captureUnfreezeLaunchRequest(source: Intent): PendingUnfreezeLaunch? {
+        val packageName = source.getStringExtra("packageName")?.takeIf { it.isNotBlank() }
+            ?: return null
+        val linkedPackages = source.getStringExtra("linkedPackages")
+            ?.split(",")
+            ?.filter { it.isNotBlank() }
+            ?.toTypedArray()
+            ?: emptyArray()
+        return PendingUnfreezeLaunch(packageName, linkedPackages)
+    }
+
+    private fun forwardUnfreezeAndLaunchToWorkProfile(request: PendingUnfreezeLaunch) {
         val forwardIntent = Intent(UNFREEZE_AND_LAUNCH)
         Utility.transferIntentToProfile(this, forwardIntent)
-        val packageName = requireNotNull(intent.getStringExtra("packageName"))
+        val packageName = request.packageName
         forwardIntent.putExtra("packageName", packageName)
         forwardIntent.putExtra(
             "shouldFreeze",
@@ -555,8 +610,8 @@ class DummyActivity : Activity() {
                         packageName
                     )
         )
-        if (intent.hasExtra("linkedPackages")) {
-            val packages = intent.getStringExtra("linkedPackages")!!.split(",").toTypedArray()
+        if (request.linkedPackages.isNotEmpty()) {
+            val packages = request.linkedPackages
             val packagesShouldFreeze = BooleanArray(packages.size)
             for (i in packages.indices) {
                 packagesShouldFreeze[i] = SettingsManager.getInstance().getAutoFreezeServiceEnabled() &&
@@ -647,12 +702,7 @@ class DummyActivity : Activity() {
                 finish()
                 return
             }
-            AlwaysOnVpnGuard.runOrWarn(
-                this,
-                AlwaysOnVpnGuard.Action.LAUNCH_APP,
-                Runnable { actionUnfreezeAppAfterAlwaysOnCheck(packageName) },
-                Runnable { finish() },
-            )
+            actionUnfreezeAppAfterVpnCheck(packageName)
             return
         }
 
@@ -668,7 +718,7 @@ class DummyActivity : Activity() {
         finish()
     }
 
-    private fun actionUnfreezeAppAfterAlwaysOnCheck(packageName: String) {
+    private fun actionUnfreezeAppAfterVpnCheck(packageName: String) {
         if (!ensureAntiSpyVpnPermissionThenLaunch()) {
             return
         }
@@ -704,18 +754,13 @@ class DummyActivity : Activity() {
     private fun actionPublicUnfreezeAll() {
         if (!isProfileOwner) {
             if (forwardBatchToMainActivityIfVisible(PUBLIC_UNFREEZE_ALL)) return
-            AlwaysOnVpnGuard.runOrWarn(
-                this,
-                AlwaysOnVpnGuard.Action.LAUNCH_APP,
-                Runnable { actionPublicUnfreezeAllAfterAlwaysOnCheck() },
-                Runnable { finish() },
-            )
+            actionPublicUnfreezeAllAfterVpnCheck()
         } else {
             throw RuntimeException("unimplemented")
         }
     }
 
-    private fun actionPublicUnfreezeAllAfterAlwaysOnCheck() {
+    private fun actionPublicUnfreezeAllAfterVpnCheck() {
         if (!ensureAntiSpyVpnPermissionThenLaunch()) {
             return
         }
@@ -759,7 +804,6 @@ class DummyActivity : Activity() {
             if (result.allHidden) {
                 Utility.notifyVpnBatchFreezeSessionComplete(this, result.newlyFrozenCount > 0)
             } else if (result.newlyFrozenCount > 0) {
-                Utility.postVpnAutoFreezeSuccessAlert(this)
                 Utility.showToastOnMainProfile(this, R.string.freeze_all_success)
             }
             Utility.scheduleAppListRefreshDelivery(this)
@@ -883,6 +927,16 @@ class DummyActivity : Activity() {
         }
     }
 
+    private fun actionVpnWatchHeartbeat() {
+        if (!isProfileOwner) {
+            AntiSpyVpnWatchHealth.recordWorkHeartbeatOnMain(
+                intent.getLongExtra(AntiSpyVpnWatchHealth.EXTRA_AT, 0L),
+                intent.getBooleanExtra(AntiSpyVpnWatchHealth.EXTRA_VPN_ACTIVE, false),
+            )
+        }
+        finish()
+    }
+
     companion object {
         const val FINALIZE_PROVISION = "net.typeblog.shelter.action.FINALIZE_PROVISION"
         const val START_SERVICE = "net.typeblog.shelter.action.START_SERVICE"
@@ -909,7 +963,11 @@ class DummyActivity : Activity() {
             "net.typeblog.shelter.action.SYNC_ANTI_SPY_VPN_WATCH"
         const val VPN_SESSION_COMPLETE =
             "net.typeblog.shelter.action.VPN_SESSION_COMPLETE"
+        const val VPN_WATCH_HEARTBEAT =
+            "net.typeblog.shelter.action.VPN_WATCH_HEARTBEAT"
         const val PACKAGEINSTALLER_CALLBACK = "net.typeblog.shelter.action.PACKAGEINSTALLER_CALLBACK"
+        const val RECOVER_AUTH_KEY = "net.typeblog.shelter.action.RECOVER_AUTH_KEY"
+        const val EXTRA_RECOVERY_AUTH_KEY = "recovery_auth_key"
 
         private val ACTIONS_ALLOWED_WITHOUT_SIGNATURE = listOf(
             FINALIZE_PROVISION,
@@ -918,6 +976,7 @@ class DummyActivity : Activity() {
             PUBLIC_UNFREEZE_AND_LAUNCH,
             REFRESH_MAIN_APP_LIST,
             SHOW_TOAST,
+            RECOVER_AUTH_KEY,
         )
 
         private val ACTIONS_ALLOWED_WITHOUT_SIGNATURE_SAME_PROCESS = listOf(

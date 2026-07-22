@@ -357,7 +357,6 @@ object Utility {
         val app = context.applicationContext
         if (AntiSpyManager.isWorkProfile(app)) {
             scheduleAppListRefreshMainActivityOnMainProfile(app)
-            scheduleAppListRefreshReceiverOnMainProfile(app)
         } else {
             deliverAppListRefreshInMainProcess(app)
         }
@@ -427,14 +426,13 @@ object Utility {
             return
         }
         try {
-            val cross = Intent(AntiSpyVpnWatchHealth.ACTION_HEARTBEAT).apply {
-                setPackage(app.packageName)
-                component = ComponentName(app, VpnWatchHeartbeatReceiver::class.java)
+            val cross = Intent(DummyActivity.VPN_WATCH_HEARTBEAT).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 putExtra(AntiSpyVpnWatchHealth.EXTRA_AT, at)
                 putExtra(AntiSpyVpnWatchHealth.EXTRA_VPN_ACTIVE, vpnActive)
             }
             transferIntentToProfile(app, cross)
-            val pi = PendingIntent.getBroadcast(
+            val pi = PendingIntent.getActivity(
                 app,
                 0xE49EA,
                 cross,
@@ -464,7 +462,6 @@ object Utility {
         val app = context.applicationContext
         if (AntiSpyManager.isWorkProfile(app)) {
             scheduleAppListRefreshMainActivityOnMainProfile(app)
-            scheduleAppListRefreshReceiverOnMainProfile(app)
         }
         scheduleAppListRefreshDelivery(app)
     }
@@ -584,9 +581,7 @@ object Utility {
             )
         } catch (e: Exception) {
             Log.w(TAG, "scheduleRefreshMainAppList failed", e)
-            if (fromWork) {
-                scheduleAppListRefreshReceiverOnMainProfile(app)
-            } else {
+            if (!fromWork) {
                 deliverAppListRefreshInMainProcess(app)
             }
         }
@@ -750,6 +745,12 @@ object Utility {
 
         manager.addCrossProfileIntentFilter(
             adminComponent,
+            IntentFilter(DummyActivity.RECOVER_AUTH_KEY),
+            DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT
+        )
+
+        manager.addCrossProfileIntentFilter(
+            adminComponent,
             IntentFilter(DummyActivity.UNFREEZE_AND_LAUNCH),
             DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT
         )
@@ -877,7 +878,13 @@ object Utility {
         manager.addCrossProfileIntentFilter(
             adminComponent,
             IntentFilter(DummyActivity.VPN_SESSION_COMPLETE),
-            DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT
+            DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED
+        )
+
+        manager.addCrossProfileIntentFilter(
+            adminComponent,
+            IntentFilter(DummyActivity.VPN_WATCH_HEARTBEAT),
+            DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED
         )
 
         manager.addCrossProfileIntentFilter(
@@ -1457,70 +1464,6 @@ object Utility {
 
     private const val NOTIFICATION_CHANNEL_ID = "ShelterService"
     private const val NOTIFICATION_CHANNEL_IMPORTANT = "ShelterService-Important"
-    private const val NOTIFICATION_CHANNEL_USER_ALERTS = "ShelterUserAlerts"
-    private const val VPN_AUTO_FREEZE_SUCCESS_NOTIFICATION_ID = 0xe49d3
-
-    fun postUserAlert(
-        context: Context,
-        notificationId: Int,
-        title: String,
-        text: String,
-        icon: Int = R.drawable.ic_lock_open_white_24dp,
-    ) {
-        val app = context.applicationContext
-        app.getSystemService(NotificationManager::class.java).notify(
-            notificationId,
-            buildUserAlertNotification(app, title, text, icon),
-        )
-    }
-
-    fun postVpnAutoFreezeSuccessAlert(context: Context) {
-        val app = context.applicationContext
-        postUserAlert(
-            app,
-            VPN_AUTO_FREEZE_SUCCESS_NOTIFICATION_ID,
-            app.getString(R.string.anti_spy_monitor_notification_title),
-            app.getString(R.string.freeze_all_success),
-        )
-    }
-
-    fun buildUserAlertNotification(
-        context: Context,
-        title: String,
-        text: String,
-        icon: Int = R.drawable.ic_lock_open_white_24dp,
-    ): Notification {
-        val app = context.applicationContext
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = app.getSystemService(NotificationManager::class.java)
-            if (nm.getNotificationChannel(NOTIFICATION_CHANNEL_USER_ALERTS) == null) {
-                val chan = NotificationChannel(
-                    NOTIFICATION_CHANNEL_USER_ALERTS,
-                    app.getString(R.string.notifications_important),
-                    NotificationManager.IMPORTANCE_HIGH,
-                )
-                chan.enableVibration(true)
-                nm.createNotificationChannel(chan)
-            }
-            return Notification.Builder(app, NOTIFICATION_CHANNEL_USER_ALERTS)
-                .setContentTitle(title)
-                .setContentText(text)
-                .setStyle(Notification.BigTextStyle().bigText(text))
-                .setSmallIcon(icon)
-                .setAutoCancel(true)
-                .setOnlyAlertOnce(true)
-                .setCategory(Notification.CATEGORY_STATUS)
-                .build()
-        }
-        return Notification.Builder(app)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setStyle(Notification.BigTextStyle().bigText(text))
-            .setSmallIcon(icon)
-            .setPriority(Notification.PRIORITY_MAX)
-            .setAutoCancel(true)
-            .build()
-    }
 
     fun buildNotification(
         context: Context,

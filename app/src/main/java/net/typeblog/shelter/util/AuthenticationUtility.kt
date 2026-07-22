@@ -21,20 +21,23 @@ import javax.crypto.spec.SecretKeySpec
 // The private key is generated the first time this class is used, and then shared
 // across the profile boundary. Shelter will always trust the first key it receives.
 object AuthenticationUtility {
-    fun signIntent(intent: Intent) {
+    fun getOrCreateKey(): String {
         var key = LocalStorageManager.getInstance().getString(LocalStorageManager.PREF_AUTH_KEY)
         if (key == null) {
-            try {
-                val keyGen = KeyGenerator.getInstance("HmacSHA256")
-                keyGen.init(256)
-                key = bytesToHex(keyGen.generateKey().encoded)
-            } catch (e: NoSuchAlgorithmException) {
-                throw RuntimeException("WTF?")
-            }
-
+            key = generateKey()
             LocalStorageManager.getInstance().setString(LocalStorageManager.PREF_AUTH_KEY, key)
+        }
+        return key
+    }
 
-            intent.putExtra("auth_key", key)
+    fun replaceKey(key: String) {
+        LocalStorageManager.getInstance().setString(LocalStorageManager.PREF_AUTH_KEY, key)
+    }
+
+    fun signIntent(intent: Intent) {
+        val key = LocalStorageManager.getInstance().getString(LocalStorageManager.PREF_AUTH_KEY)
+        if (key == null) {
+            intent.putExtra("auth_key", getOrCreateKey())
         } else {
             val timestamp = Date().time
             intent.putExtra("timestamp", timestamp)
@@ -76,6 +79,16 @@ object AuthenticationUtility {
         } catch (e: NoSuchAlgorithmException) {
             throw RuntimeException("WTF?")
         } catch (e: InvalidKeyException) {
+            throw RuntimeException("WTF?")
+        }
+    }
+
+    private fun generateKey(): String {
+        return try {
+            val keyGen = KeyGenerator.getInstance("HmacSHA256")
+            keyGen.init(256)
+            bytesToHex(keyGen.generateKey().encoded)
+        } catch (e: NoSuchAlgorithmException) {
             throw RuntimeException("WTF?")
         }
     }

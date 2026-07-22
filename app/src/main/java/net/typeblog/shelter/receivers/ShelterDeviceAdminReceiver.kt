@@ -24,7 +24,7 @@ class ShelterDeviceAdminReceiver : DeviceAdminReceiver() {
             "shelter-finish-provision",
             context.getString(R.string.finish_provision_title),
             context.getString(R.string.finish_provision_desc),
-            R.drawable.ic_notification_white_24dp,
+            R.drawable.ic_notification_zindan_24dp,
         )
         notification.contentIntent = PendingIntent.getActivity(
             context,

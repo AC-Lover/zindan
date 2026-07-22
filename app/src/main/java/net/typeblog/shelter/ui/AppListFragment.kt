@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.os.RemoteException
+import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.LayoutInflater
@@ -418,6 +419,27 @@ class AppListFragment : BaseFragment() {
         try {
             service!!.getApps(object : IGetAppsCallback.Stub() {
                 override fun callback(apps: MutableList<ApplicationInfoWrapper>) {
+                    if (isRemote && apps.isEmpty()) {
+                        val storage = LocalStorageManager.getInstance()
+                        val hasPreservedState = storage.getStringList(
+                            LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE
+                        ).isNotEmpty() || storage.getStringList(
+                            LocalStorageManager.PREF_KNOWN_WORK_PROFILE_PACKAGES
+                        ).isNotEmpty()
+                        if (hasPreservedState) {
+                            Log.w(TAG, "Ignoring empty work-profile app list; preserving local state")
+                            runOnUiThread {
+                                refreshing = false
+                                if (!isAdded) return@runOnUiThread
+                                swipeRefresh?.isRefreshing = false
+                                if (refreshPending) {
+                                    refreshPending = false
+                                    refresh()
+                                }
+                            }
+                            return
+                        }
+                    }
                     if (isRemote) {
                         crossProfileWidgetProviders.clear()
                         crossProfilePackages.clear()
@@ -637,6 +659,7 @@ class AppListFragment : BaseFragment() {
     }
 
     companion object {
+        private const val TAG = "AppListFragment"
         const val BROADCAST_REFRESH = "net.typeblog.shelter.broadcast.REFRESH"
 
         private const val MENU_ITEM_CLONE = 10001

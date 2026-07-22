@@ -1,3 +1,17 @@
+1.5.7 (266)
+===
+
+**APK:** `Zindan-1.5.7-(266)-debug.apk`
+
+- Added safe recovery of the connection to an existing work profile when the personal and work copies lose their shared authentication key. Recovery is available automatically and from **Menu → Restore connection to existing profile**; it does not recreate or erase the profile.
+- Preserved work-profile setup state after transient connection failures instead of incorrectly starting profile provisioning again.
+- Protected the auto-freeze list from temporary empty work-profile app responses, and retained a backup of the latest non-empty list.
+- Fixed an asynchronous shortcut race that could close `DummyActivity` while launching an app from the work profile.
+- Hardened Samsung background VPN monitoring: the watcher now runs as an Android 14+ `specialUse` foreground service, and work-profile heartbeat/session-complete delivery uses the working cross-profile activity path.
+- Unified short user messages as transient System UI notifications, removed duplicate toast/notification delivery, and replaced the inherited Shelter notification glyph with a monochrome Zindan shield.
+- Removed the Always-on VPN / lockdown state checks and warning dialogs introduced in build 259 because they made normal launch, unfreeze, APK-install, and VPN-permission flows inconvenient.
+- Zindan no longer reads or changes these system settings; the user guide now recommends checking and disabling them manually when they interfere with Anti Spy.
+
 1.5.6 (259)
 ===
 

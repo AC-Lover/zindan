@@ -61,7 +61,7 @@ class BatchFreezeService : Service() {
             getString(R.string.anti_spy_monitor_notification_title),
             getString(R.string.anti_spy_monitor_notification_title),
             getString(R.string.anti_spy_monitor_notification_text),
-            R.drawable.ic_lock_open_white_24dp,
+            R.drawable.ic_notification_zindan_24dp,
         )
         startForeground(NOTIFICATION_ID, notification)
     }

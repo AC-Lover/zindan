@@ -64,6 +64,11 @@
             android:title="@string/settings_vpn_watch_health"
             android:summary="@string/settings_vpn_watch_health_desc" />
 
+        <androidx.preference.Preference
+            android:key="settings_restore_work_profile"
+            android:title="@string/restore_work_profile_connection"
+            android:summary="@string/restore_work_profile_connection_desc" />
+
     </androidx.preference.PreferenceCategory>
 
     <androidx.preference.PreferenceCategory

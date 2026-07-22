@@ -256,7 +256,7 @@ class ShelterService : Service() {
                 getString(R.string.app_name),
                 getString(R.string.service_title),
                 getString(R.string.service_desc),
-                R.drawable.ic_notification_white_24dp,
+                R.drawable.ic_notification_zindan_24dp,
             ),
         )
         if (isProfileOwner) {

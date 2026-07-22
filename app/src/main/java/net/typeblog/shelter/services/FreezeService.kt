@@ -130,7 +130,7 @@ class FreezeService : Service() {
             getString(R.string.service_auto_freeze_title),
             getString(R.string.service_auto_freeze_title),
             getString(R.string.service_auto_freeze_desc),
-            R.drawable.ic_lock_open_white_24dp,
+            R.drawable.ic_notification_zindan_24dp,
         )
 
         val intentFreeze = Intent(DummyActivity.PUBLIC_FREEZE_ALL)

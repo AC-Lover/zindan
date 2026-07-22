@@ -31,6 +31,10 @@
         app:showAsAction="ifRoom" />
 
     <item
+        android:id="@+id/main_menu_restore_work_profile"
+        android:title="@string/restore_work_profile_connection" />
+
+    <item
         android:id="@+id/main_menu_create_freeze_all_shortcut"
         android:title="@string/create_freeze_all_shortcut" />
 

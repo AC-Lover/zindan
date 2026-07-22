@@ -70,13 +70,6 @@
     <string name="anti_spy_vpn_prompt_permission_text">Zindan needs VPN permission once in the main profile to interrupt external VPN before the freeze prompt. Open Zindan and allow VPN access, then try again.</string>
     <string name="anti_spy_vpn_prompt_failed_title">Could not interrupt VPN</string>
     <string name="anti_spy_vpn_prompt_failed_text">External VPN is still active. Open Zindan, ensure VPN permission is granted, or turn VPN off manually before batch-freezing.</string>
-    <string name="always_on_vpn_warning_title">Always-on VPN is enabled</string>
-    <string name="always_on_vpn_warning_text">В системе включён Always-on VPN. Эта настройка может мешать корректной работе. Отключите Always-on VPN в настройках Android.\n\nVPN package: %1$s\nLockdown mode: %2$s\n\nОткрыть настройки VPN?</string>
-    <string name="always_on_vpn_manual_check_text">Zindan cannot read the Always-on VPN setting in this profile using public Android APIs. If Always-on VPN or Block connections without VPN is enabled, it may interfere with correct operation.\n\nPlease check it manually in Android VPN settings.\n\nОткрыть настройки VPN?</string>
-    <string name="always_on_vpn_open_settings">Открыть настройки VPN</string>
-    <string name="always_on_vpn_unknown_package">unknown</string>
-    <string name="always_on_vpn_lockdown_on">on</string>
-    <string name="always_on_vpn_lockdown_off">off</string>
     <string name="allow_cross_profile_widgets">Allow Widgets in Main Profile</string>
     <string name="allow_cross_profile_interaction">Allow Cross-Profile Interaction</string>
 
@@ -129,10 +122,22 @@
     <string name="settings_vpn_watch_summary_main">Main: %1$s</string>
     <string name="settings_vpn_watch_summary_work">Work: %1$s</string>
     <string name="settings_vpn_watch_restarted">VPN monitoring restarted</string>
+    <string name="restore_work_profile_connection">Restore connection to existing work profile</string>
+    <string name="restore_work_profile_connection_desc">Use this if Zindan asks to set up a new profile while the old work profile still exists.</string>
+    <string name="work_profile_existing_recovery_title">Existing work profile may still exist</string>
+    <string name="work_profile_existing_recovery_text">Zindan could not connect to the work profile. If your work-profile apps are still visible or still work, do not create a new profile yet. Try restoring the connection first.</string>
+    <string name="work_profile_start_setup_anyway">Start setup anyway</string>
+    <string name="work_profile_recovery_manual_text">This will ask the existing work-profile copy of Zindan to trust this personal-profile copy again. Use it only when the work profile is still present but Zindan lost control.</string>
+    <string name="work_profile_recovery_success">Connection to the existing work profile restored.</string>
 
     <!-- Toast Long Texts -->
     <string name="provision_finished">Zindan setup complete. Now restarting Zindan. If Zindan didn\'t start automatically, you may launch it again from your launcher.</string>
     <string name="work_profile_not_found">Work profile not found. Please restart the app to re-provision the profile.</string>
+    <string name="work_profile_unavailable_retry">Work profile is temporarily unavailable. Enable Work mode and reopen Zindan; the existing profile will not be reset.</string>
+    <string name="work_profile_recovery_failed">Could not restore connection to the existing work profile. Do not recreate it yet; try reopening Zindan once more.</string>
+    <string name="work_profile_recovery_title">Restore Zindan connection?</string>
+    <string name="work_profile_recovery_text">Zindan found an existing work profile, but the main profile lost the trusted connection key. Restore control for this Zindan installation only if you started this recovery from Zindan.</string>
+    <string name="work_profile_recovery_restore">Restore connection</string>
     <string name="work_mode_disabled">It looks like you have disabled Work Mode while starting Zindan. If you have enabled it now, please start Zindan again.</string>
     <string name="clone_success">Application \"%s\" cloned successfully</string>
     <string name="uninstall_success">Application \"%s\" uninstalled successfully</string>

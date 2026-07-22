@@ -138,4 +138,11 @@
     <string name="settings_vpn_watch_summary_main">Основной: %1$s</string>
     <string name="settings_vpn_watch_summary_work">Рабочий: %1$s</string>
     <string name="settings_vpn_watch_restarted">Мониторинг VPN перезапущен</string>
+    <string name="restore_work_profile_connection">Восстановить связь с существующим профилем</string>
+    <string name="restore_work_profile_connection_desc">Используйте, если Zindan просит создать новый профиль, хотя старый рабочий профиль ещё существует.</string>
+    <string name="work_profile_existing_recovery_title">Рабочий профиль мог сохраниться</string>
+    <string name="work_profile_existing_recovery_text">Zindan не смог подключиться к рабочему профилю. Если приложения рабочего профиля ещё видны или запускаются, не создавайте новый профиль. Сначала попробуйте восстановить связь.</string>
+    <string name="work_profile_start_setup_anyway">Всё равно начать настройку</string>
+    <string name="work_profile_recovery_manual_text">Zindan попросит копию приложения в рабочем профиле снова доверять этой копии в основном профиле. Используйте это только если рабочий профиль сохранился, но Zindan потерял управление.</string>
+    <string name="work_profile_recovery_success">Связь с существующим рабочим профилем восстановлена.</string>
 </resources>

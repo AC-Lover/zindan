@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:maxSdkVersion="25"
         android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
     <uses-permission android:maxSdkVersion="25"
@@ -89,6 +90,7 @@
                 <action android:name="net.typeblog.shelter.action.FINALIZE_PROVISION" />
                 <action android:name="net.typeblog.shelter.action.START_SERVICE" />
                 <action android:name="net.typeblog.shelter.action.TRY_START_SERVICE" />
+                <action android:name="net.typeblog.shelter.action.RECOVER_AUTH_KEY" />
                 <action android:name="net.typeblog.shelter.action.INSTALL_PACKAGE" />
                 <action android:name="net.typeblog.shelter.action.UNINSTALL_PACKAGE" />
                 <action android:name="net.typeblog.shelter.action.UNFREEZE_AND_LAUNCH" />
@@ -102,6 +104,7 @@
                 <action android:name="net.typeblog.shelter.action.ENABLE_AUTO_FREEZE_WORK_PROFILE" />
                 <action android:name="net.typeblog.shelter.action.REFRESH_MAIN_APP_LIST" />
                 <action android:name="net.typeblog.shelter.action.VPN_SESSION_COMPLETE" />
+                <action android:name="net.typeblog.shelter.action.VPN_WATCH_HEARTBEAT" />
                 <action android:name="net.typeblog.shelter.action.REMOVE_UNFREEZE_SHORTCUT" />
                 <!-- We need two of these to avoid being prompted with an action chooser dialog -->
                 <!-- When the intent is actually already forwarded to work profile -->
@@ -238,7 +241,11 @@
             android:exported="false"
             android:process=":vpnwatch"
             android:stopWithTask="false"
-            android:foregroundServiceType="systemExempted" />
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="continuous_vpn_state_monitoring_for_work_profile_freeze_automation" />
+        </service>
 
         <service android:name=".services.BatchFreezeService"
             android:exported="false"
