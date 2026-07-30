@@ -66,6 +66,10 @@ function Convert-MarkdownToHtml([string[]]$lines) {
             continue
         }
 
+        if ($line -match '^>\s*$') {
+            continue
+        }
+
         if ($line -match '^> (.+)$') {
             [void]$sb.AppendLine("<blockquote>$(Format-Inline $Matches[1])</blockquote>")
             continue
@@ -137,7 +141,7 @@ $html = @"
 <meta charset="utf-8"/>
 <title>$pageTitle</title>
 <style>
-  @page { margin: 18mm 16mm; }
+  @page { size: A4; margin: 18mm 16mm; }
   body { font-family: "Segoe UI", Arial, sans-serif; font-size: 11pt; line-height: 1.45; color: #1a1a1a; }
   h1 { font-size: 22pt; color: #2d5016; border-bottom: 2px solid #c9a227; padding-bottom: 6px; }
   h2 { font-size: 14pt; color: #2d5016; margin-top: 1.2em; }
@@ -174,6 +178,7 @@ $htmlUri = "file:///" + ($htmlPath -replace '\\', '/')
 $edgeArgs = @(
     "--headless=new",
     "--disable-gpu",
+    "--no-pdf-header-footer",
     "--run-all-compositor-stages-before-draw",
     "--virtual-time-budget=10000",
     "--print-to-pdf=$outputPdfPath",
