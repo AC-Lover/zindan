@@ -48,6 +48,7 @@ import net.typeblog.shelter.util.AntiSpyLaunchGate
 import net.typeblog.shelter.util.AuthenticationUtility
 import net.typeblog.shelter.util.AntiSpyManager
 import net.typeblog.shelter.util.ApplicationInfoWrapper
+import net.typeblog.shelter.util.AutoFreezeDefaults
 import net.typeblog.shelter.util.LocalStorageManager
 import net.typeblog.shelter.util.SettingsManager
 import net.typeblog.shelter.util.UriForwardProxy
@@ -803,6 +804,10 @@ class MainActivity : AppCompatActivity() {
                 showManualWorkProfileRecoveryDialog()
                 true
             }
+            R.id.main_menu_clear_auto_freeze_all -> {
+                showClearAllAutoFreezeDialog()
+                true
+            }
             R.id.main_menu_create_freeze_all_shortcut -> {
                 val launchIntent = batchShortcutIntent(DummyActivity.PUBLIC_FREEZE_ALL)
                 Utility.createLauncherShortcut(
@@ -851,6 +856,47 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    private fun showClearAllAutoFreezeDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.clear_auto_freeze_all)
+            .setMessage(R.string.clear_auto_freeze_all_warning)
+            .setPositiveButton(R.string.clear_auto_freeze_all_confirm) { _, _ ->
+                clearAllAutoFreeze()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun clearAllAutoFreeze() {
+        val work = serviceWork
+        if (work == null || !servicesAlive()) {
+            ZindanToast.show(this, R.string.work_profile_unavailable_retry)
+            return
+        }
+        try {
+            work.getApps(object : IGetAppsCallback.Stub() {
+                override fun callback(apps: MutableList<ApplicationInfoWrapper>) {
+                    val allPackages = apps.map { it.getPackageName() }
+                    val cleared = AutoFreezeDefaults.clearAllForWorkProfile(allPackages)
+                    AntiSpyManager.syncAutoFreezeListToWorkProfile(
+                        applicationContext,
+                        force = true
+                    )
+                    runOnUiThread {
+                        if (isDestroyed) return@runOnUiThread
+                        refreshAppLists()
+                        ZindanToast.show(
+                            this@MainActivity,
+                            getString(R.string.clear_auto_freeze_all_success, cleared)
+                        )
+                    }
+                }
+            }, true)
+        } catch (_: RemoteException) {
+            ZindanToast.show(this, R.string.work_profile_unavailable_retry)
         }
     }
 

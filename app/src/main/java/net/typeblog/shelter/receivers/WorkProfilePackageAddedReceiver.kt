@@ -4,6 +4,8 @@ import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.util.Log
 import net.typeblog.shelter.util.AutoFreezeDefaults
 import net.typeblog.shelter.util.Utility
@@ -25,6 +27,19 @@ class WorkProfilePackageAddedReceiver : BroadcastReceiver() {
         }
         val packageName = intent.data?.schemeSpecificPart ?: return
         if (packageName == context.packageName) {
+            return
+        }
+        val applicationInfo = try {
+            @Suppress("DEPRECATION")
+            context.packageManager.getApplicationInfo(
+                packageName,
+                PackageManager.MATCH_DISABLED_COMPONENTS
+            )
+        } catch (_: PackageManager.NameNotFoundException) {
+            return
+        }
+        if (applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0) {
+            Log.i(TAG, "ignoring system package added in work profile: $packageName")
             return
         }
         val pendingResult = goAsync()

@@ -54,6 +54,20 @@
 
 ## Отложено
 
+### Совместимость и Android Lint ниже Android 14
+
+**Статус:** сознательно отложено после 1.5.8; текущий приоритет — Android 14+ и
+полевые устройства Samsung.
+
+При будущем возврате к Android 7–13 проверить и исправить:
+
+- перегрузки `registerReceiver` и обязательные exported-флаги;
+- использование `ShortcutManager` / `ShortcutInfo` на API 24;
+- явные API-ограничения для cross-profile packages на API 30;
+- остальные `NewApi`-замечания полного Android Lint.
+
+Не смешивать эти изменения с VPN watcher и хранением списка автозаморозки.
+
 ### Galaxy Store — не клонируется
 
 **Статус:** отложено (как в upstream Shelter)  

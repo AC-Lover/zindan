@@ -1,3 +1,35 @@
+1.6.0 (269)
+===
+
+**APK:** `Zindan-1.6.0-(269)-release.apk`
+
+- Fixed **Show All Apps** incorrectly treating newly revealed system packages as newly installed apps and assigning auto-freeze to them.
+- App installation tracking is now independent from the visible list filter and ignores uninstalled package records.
+- System packages are no longer auto-enrolled by the work-profile package-added fallback; explicit user actions remain supported.
+- Added **Remove auto-freeze from all apps**. It clears the protected auto-freeze list for every current work-profile package, including hidden apps, and records explicit opt-outs so a refresh cannot restore the selections.
+- The bulk command does not unfreeze apps that are already frozen; it only removes their auto-freeze selection.
+
+1.5.8 (268)
+===
+
+**APK:** `Zindan-1.5.8-(268)-release.apk`
+
+- Fixed work-profile authentication after updating to build 267: Android/Samsung rewrites the target component while forwarding an Intent across profiles, so the receiver could not reproduce a signature that included that component.
+- Kept action and supported extras authenticated with timestamp, one-time nonce, constant-time comparison, and replay protection.
+- Restores the existing profile connection through the normal confirmation flow; the work profile does not need to be recreated.
+
+1.5.8 (267)
+===
+
+**APK:** `Zindan-1.5.8-(267)-release.apk`
+
+- Protected the work-profile auto-freeze list with a monotonic generation and SHA-256 checksum.
+- Added validated recovery from the latest non-empty backup when the main record is damaged or an older multi-process view is observed.
+- Preserved intentional empty lists by keeping their newer generation authoritative, so clearing all auto-freeze checkboxes does not restore old selections.
+- Kept the proven Samsung VPN watcher, two-second polling, and multi-process storage mode unchanged.
+- Added stable local release signing and safe local GitHub publication without uploading the private signing key.
+- Hardened cross-profile command authentication by signing the action, component, and supported extras with a one-time nonce and replay protection.
+
 1.5.7 (266)
 ===
 

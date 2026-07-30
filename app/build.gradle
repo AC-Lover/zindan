@@ -19,14 +19,25 @@ if (versionPropsFile.canRead()) {
     versionProps['VERSION_CODE'] = '150'
 }
 
-def assembleRequested = gradle.startParameter.taskNames.any { taskName ->
-    taskName.toLowerCase().contains('assemble')
+def signingProps = new Properties()
+def signingPropsFile = rootProject.file('signing.properties')
+if (signingPropsFile.canRead()) {
+    signingPropsFile.withInputStream { signingProps.load(it) }
 }
-if (assembleRequested) {
-    def nextCode = versionProps.getProperty('VERSION_CODE', '150').toInteger() + 1
-    versionProps['VERSION_CODE'] = nextCode.toString()
-    versionPropsFile.withOutputStream { versionProps.store(it, null) }
+
+def signingValue = { String propertyName, String environmentName ->
+    signingProps.getProperty(propertyName) ?: System.getenv(environmentName)
 }
+def releaseStorePath = signingValue('storeFile', 'ZINDAN_KEYSTORE_PATH')
+def releaseStorePassword = signingValue('storePassword', 'ZINDAN_KEYSTORE_PASSWORD')
+def releaseKeyAlias = signingValue('keyAlias', 'ZINDAN_KEY_ALIAS')
+def releaseKeyPassword = signingValue('keyPassword', 'ZINDAN_KEY_PASSWORD')
+def releaseSigningAvailable = [
+        releaseStorePath,
+        releaseStorePassword,
+        releaseKeyAlias,
+        releaseKeyPassword,
+].every { it != null && !it.isBlank() }
 
 android {
     compileSdk 35
@@ -39,8 +50,23 @@ android {
         versionName versionProps.getProperty('VERSION_NAME', '1.5.0')
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
+    signingConfigs {
+        if (releaseSigningAvailable) {
+            release {
+                storeFile rootProject.file(releaseStorePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+                enableV1Signing true
+                enableV2Signing true
+            }
+        }
+    }
     buildTypes {
         release {
+            if (releaseSigningAvailable) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -97,14 +123,24 @@ afterEvaluate {
         dependsOn('fixAidlGeneratedComments')
     }
 
-    tasks.named('assembleDebug').configure {
-        doLast {
-            def apkDir = file("$buildDir/outputs/apk/debug")
-            def apk = apkDir.listFiles()?.find { it.name.endsWith('.apk') }
-            if (apk != null) {
-                copy {
-                    from apk
-                    into rootProject.projectDir
+    ['Debug', 'Release'].each { buildType ->
+        tasks.named("assemble${buildType}").configure {
+            if (buildType == 'Release' && !releaseSigningAvailable) {
+                doFirst {
+                    throw new GradleException(
+                            'Release signing is not configured. Use signing.properties ' +
+                                    'or the ZINDAN_KEYSTORE_* environment variables.'
+                    )
+                }
+            }
+            doLast {
+                def apkDir = file("$buildDir/outputs/apk/${buildType.toLowerCase()}")
+                def apk = apkDir.listFiles()?.find { it.name.endsWith('.apk') }
+                if (apk != null) {
+                    copy {
+                        from apk
+                        into rootProject.projectDir
+                    }
                 }
             }
         }

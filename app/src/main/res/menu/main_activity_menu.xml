@@ -35,6 +35,10 @@
         android:title="@string/restore_work_profile_connection" />
 
     <item
+        android:id="@+id/main_menu_clear_auto_freeze_all"
+        android:title="@string/clear_auto_freeze_all" />
+
+    <item
         android:id="@+id/main_menu_create_freeze_all_shortcut"
         android:title="@string/create_freeze_all_shortcut" />
 

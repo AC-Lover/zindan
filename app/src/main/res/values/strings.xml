@@ -49,6 +49,10 @@
     <string name="create_unfreeze_shortcut">Create Launch Shortcut</string>
     <string name="unfreeze_and_launch">Launch</string>
     <string name="auto_freeze">Auto Freeze</string>
+    <string name="clear_auto_freeze_all">Remove auto-freeze from all apps</string>
+    <string name="clear_auto_freeze_all_warning">Auto-freeze will be removed from every current work-profile app, including apps hidden from the normal list. Apps that are already frozen will remain frozen.</string>
+    <string name="clear_auto_freeze_all_confirm">Remove from all</string>
+    <string name="clear_auto_freeze_all_success">Auto-freeze removed from %1$d apps.</string>
     <string name="app_menu_check_off" translatable="false">\u2610\u0020</string>
     <string name="app_menu_check_on" translatable="false">\u2612\u0020</string>
     <string name="anti_spy_vpn_block_title">VPN is active</string>

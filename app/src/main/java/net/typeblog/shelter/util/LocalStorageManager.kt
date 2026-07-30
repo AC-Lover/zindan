@@ -2,6 +2,8 @@ package net.typeblog.shelter.util
 
 import android.content.Context
 import android.content.SharedPreferences
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 
 class LocalStorageManager private constructor(context: Context) {
     private val appContext: Context = context.applicationContext
@@ -48,19 +50,20 @@ class LocalStorageManager private constructor(context: Context) {
         prefs.edit().putString(pref, value).apply()
     }
 
-    fun getStringList(pref: String): Array<String> =
-        prefs.getString(pref, "")!!
-            .split(LIST_DIVIDER)
-            .filter { it.isNotEmpty() }
-            .toTypedArray()
+    fun getStringList(pref: String): Array<String> = if (isProtectedAutoFreezeList(pref)) {
+        readProtectedAutoFreezeList(prefs, repair = true)
+    } else {
+        decodeStringList(prefs.getString(pref, ""))
+    }
 
     /** Re-read from disk (needed for the {@code :vpnwatch} process). */
     fun getStringListFresh(pref: String): Array<String> {
         prefs = prefs()
-        return prefs.getString(pref, "")!!
-            .split(LIST_DIVIDER)
-            .filter { it.isNotEmpty() }
-            .toTypedArray()
+        return if (isProtectedAutoFreezeList(pref)) {
+            readProtectedAutoFreezeList(prefs, repair = true)
+        } else {
+            decodeStringList(prefs.getString(pref, ""))
+        }
     }
 
     fun getBooleanFresh(pref: String, defaultValue: Boolean): Boolean =
@@ -68,10 +71,12 @@ class LocalStorageManager private constructor(context: Context) {
 
     fun setStringList(pref: String, list: Array<String>) {
         val value = Utility.stringJoin(LIST_DIVIDER, list)
-        val editor = prefs.edit().putString(pref, value)
-        if (pref == PREF_AUTO_FREEZE_LIST_WORK_PROFILE && list.isNotEmpty()) {
-            editor.putString(PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP, value)
+        if (isProtectedAutoFreezeList(pref)) {
+            writeProtectedAutoFreezeList(prefs, value)
+            prefs = prefs()
+            return
         }
+        val editor = prefs.edit().putString(pref, value)
         editor.commit()
         prefs = prefs()
     }
@@ -80,17 +85,19 @@ class LocalStorageManager private constructor(context: Context) {
         getStringList(pref).indexOf(item) >= 0
 
     fun appendStringList(pref: String, newItem: String) {
+        if (isProtectedAutoFreezeList(pref)) {
+            val list = ArrayList(getStringList(pref).toList())
+            if (!list.contains(newItem)) list.add(newItem)
+            setStringList(pref, list.toTypedArray())
+            return
+        }
         var str = prefs.getString(pref, null)
         str = if (str == null) {
             newItem
         } else {
             str + LIST_DIVIDER + newItem
         }
-        val editor = prefs.edit().putString(pref, str)
-        if (pref == PREF_AUTO_FREEZE_LIST_WORK_PROFILE && !str.isNullOrEmpty()) {
-            editor.putString(PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP, str)
-        }
-        editor.commit()
+        prefs.edit().putString(pref, str).commit()
         prefs = prefs()
     }
 
@@ -113,6 +120,16 @@ class LocalStorageManager private constructor(context: Context) {
         const val PREF_AUTO_FREEZE_LIST_WORK_PROFILE = "auto_freeze_list_work_profile"
         const val PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP =
             "auto_freeze_list_work_profile_backup"
+        private const val PREF_AUTO_FREEZE_LIST_WORK_PROFILE_GENERATION =
+            "auto_freeze_list_work_profile_generation"
+        private const val PREF_AUTO_FREEZE_LIST_WORK_PROFILE_CHECKSUM =
+            "auto_freeze_list_work_profile_checksum"
+        private const val PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP_GENERATION =
+            "auto_freeze_list_work_profile_backup_generation"
+        private const val PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP_CHECKSUM =
+            "auto_freeze_list_work_profile_backup_checksum"
+        private const val PREF_AUTO_FREEZE_LIST_FORMAT = "auto_freeze_list_format"
+        private const val AUTO_FREEZE_LIST_FORMAT_VERSION = 1
         const val PREF_CROSS_PROFILE_FILE_CHOOSER = "cross_profile_file_chooser"
         const val PREF_AUTH_KEY = "auth_key"
         const val PREF_AUTO_FREEZE_SERVICE = "auto_freeze_service"
@@ -159,17 +176,133 @@ class LocalStorageManager private constructor(context: Context) {
                 ?: throw IllegalStateException("LocalStorageManager must be initialized at start-up")
         }
 
-        fun readStringListFresh(context: Context, pref: String): Array<String> =
-            context.applicationContext
-                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE or Context.MODE_MULTI_PROCESS)
-                .getString(pref, "")!!
-                .split(LIST_DIVIDER)
-                .filter { it.isNotEmpty() }
-                .toTypedArray()
+        @Suppress("DEPRECATION")
+        fun readStringListFresh(context: Context, pref: String): Array<String> {
+            val sharedPreferences = context.applicationContext.getSharedPreferences(
+                PREFS_NAME,
+                Context.MODE_PRIVATE or Context.MODE_MULTI_PROCESS,
+            )
+            return if (isProtectedAutoFreezeList(pref)) {
+                readProtectedAutoFreezeList(sharedPreferences, repair = true)
+            } else {
+                decodeStringList(sharedPreferences.getString(pref, ""))
+            }
+        }
 
         fun readBooleanFresh(context: Context, pref: String, defaultValue: Boolean): Boolean =
             context.applicationContext
                 .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .getBoolean(pref, defaultValue)
+
+        private data class AutoFreezeSnapshot(
+            val value: String,
+            val generation: Long,
+        )
+
+        private fun isProtectedAutoFreezeList(pref: String): Boolean =
+            pref == PREF_AUTO_FREEZE_LIST_WORK_PROFILE
+
+        private fun decodeStringList(value: String?): Array<String> =
+            value.orEmpty()
+                .split(LIST_DIVIDER)
+                .filter { it.isNotEmpty() }
+                .toTypedArray()
+
+        private fun readProtectedAutoFreezeList(
+            sharedPreferences: SharedPreferences,
+            repair: Boolean,
+        ): Array<String> {
+            if (sharedPreferences.getInt(PREF_AUTO_FREEZE_LIST_FORMAT, 0) !=
+                AUTO_FREEZE_LIST_FORMAT_VERSION
+            ) {
+                val legacyValue = sharedPreferences.getString(
+                    PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
+                    "",
+                ).orEmpty()
+                writeProtectedAutoFreezeList(sharedPreferences, legacyValue)
+                return decodeStringList(legacyValue)
+            }
+
+            val primary = readSnapshot(
+                sharedPreferences,
+                PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
+                PREF_AUTO_FREEZE_LIST_WORK_PROFILE_GENERATION,
+                PREF_AUTO_FREEZE_LIST_WORK_PROFILE_CHECKSUM,
+            )
+            val backup = readSnapshot(
+                sharedPreferences,
+                PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP,
+                PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP_GENERATION,
+                PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP_CHECKSUM,
+            )
+            val selected = when {
+                primary == null -> backup
+                backup == null -> primary
+                backup.generation > primary.generation -> backup
+                else -> primary
+            } ?: AutoFreezeSnapshot("", 0L)
+
+            if (repair && primary != selected) {
+                sharedPreferences.edit()
+                    .putString(PREF_AUTO_FREEZE_LIST_WORK_PROFILE, selected.value)
+                    .putLong(PREF_AUTO_FREEZE_LIST_WORK_PROFILE_GENERATION, selected.generation)
+                    .putString(
+                        PREF_AUTO_FREEZE_LIST_WORK_PROFILE_CHECKSUM,
+                        checksum(selected.value),
+                    )
+                    .commit()
+            }
+            return decodeStringList(selected.value)
+        }
+
+        private fun readSnapshot(
+            sharedPreferences: SharedPreferences,
+            valueKey: String,
+            generationKey: String,
+            checksumKey: String,
+        ): AutoFreezeSnapshot? {
+            val value = sharedPreferences.getString(valueKey, null) ?: return null
+            val generation = sharedPreferences.getLong(generationKey, Long.MIN_VALUE)
+            if (generation == Long.MIN_VALUE) return null
+            val storedChecksum = sharedPreferences.getString(checksumKey, null) ?: return null
+            if (!MessageDigest.isEqual(
+                    checksum(value).toByteArray(StandardCharsets.US_ASCII),
+                    storedChecksum.toByteArray(StandardCharsets.US_ASCII),
+                )
+            ) {
+                return null
+            }
+            return AutoFreezeSnapshot(value, generation)
+        }
+
+        private fun writeProtectedAutoFreezeList(
+            sharedPreferences: SharedPreferences,
+            value: String,
+        ) {
+            val generation = maxOf(
+                sharedPreferences.getLong(PREF_AUTO_FREEZE_LIST_WORK_PROFILE_GENERATION, 0L),
+                sharedPreferences.getLong(
+                    PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP_GENERATION,
+                    0L,
+                ),
+            ) + 1L
+            val valueChecksum = checksum(value)
+            val editor = sharedPreferences.edit()
+                .putInt(PREF_AUTO_FREEZE_LIST_FORMAT, AUTO_FREEZE_LIST_FORMAT_VERSION)
+                .putString(PREF_AUTO_FREEZE_LIST_WORK_PROFILE, value)
+                .putLong(PREF_AUTO_FREEZE_LIST_WORK_PROFILE_GENERATION, generation)
+                .putString(PREF_AUTO_FREEZE_LIST_WORK_PROFILE_CHECKSUM, valueChecksum)
+            if (value.isNotEmpty()) {
+                editor.putString(PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP, value)
+                    .putLong(PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP_GENERATION, generation)
+                    .putString(PREF_AUTO_FREEZE_LIST_WORK_PROFILE_BACKUP_CHECKSUM, valueChecksum)
+            }
+            editor.commit()
+        }
+
+        private fun checksum(value: String): String =
+            MessageDigest.getInstance("SHA-256")
+                .digest(value.toByteArray(StandardCharsets.UTF_8))
+                .joinToString("") { "%02x".format(it) }
     }
 }

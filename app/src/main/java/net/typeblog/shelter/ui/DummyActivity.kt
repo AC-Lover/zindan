@@ -598,7 +598,6 @@ class DummyActivity : Activity() {
 
     private fun forwardUnfreezeAndLaunchToWorkProfile(request: PendingUnfreezeLaunch) {
         val forwardIntent = Intent(UNFREEZE_AND_LAUNCH)
-        Utility.transferIntentToProfile(this, forwardIntent)
         val packageName = request.packageName
         forwardIntent.putExtra("packageName", packageName)
         forwardIntent.putExtra(
@@ -624,6 +623,7 @@ class DummyActivity : Activity() {
             forwardIntent.putExtra("linkedPackages", packages)
             forwardIntent.putExtra("linkedPackagesShouldFreeze", packagesShouldFreeze)
         }
+        Utility.transferIntentToProfile(this, forwardIntent)
         startActivity(forwardIntent)
     }
 
@@ -746,8 +746,8 @@ class DummyActivity : Activity() {
     }
     private fun forwardUnfreezeAppToWorkProfile(packageName: String) {
         val forwardIntent = Intent(UNFREEZE_APP)
-        Utility.transferIntentToProfile(this, forwardIntent)
         forwardIntent.putExtra("packageName", packageName)
+        Utility.transferIntentToProfile(this, forwardIntent)
         startActivity(forwardIntent)
     }
 
@@ -768,10 +768,10 @@ class DummyActivity : Activity() {
             this, LocalStorageManager.getInstance(), "",
             {
                 val forwardIntent = Intent(UNFREEZE_ALL_IN_LIST)
-                Utility.transferIntentToProfile(this, forwardIntent)
                 val list = LocalStorageManager.getInstance()
                     .getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE)
                 forwardIntent.putExtra("list", list)
+                Utility.transferIntentToProfile(this, forwardIntent)
                 startActivity(forwardIntent)
                 finishBatchShortcutFlow()
             },

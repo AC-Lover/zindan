@@ -82,6 +82,44 @@ object AutoFreezeDefaults {
         clearPendingStoreAutoFreeze(packageName)
     }
 
+    /**
+     * Remove auto-freeze from every current work-profile package, including packages hidden
+     * from the normal app list. Opt-outs are written first so a concurrent refresh cannot
+     * infer the same packages as new installations and add them back.
+     */
+    fun clearAllForWorkProfile(currentPackages: Collection<String>): Int {
+        val storage = LocalStorageManager.getInstance()
+        val selected = storage.getStringList(
+            LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE
+        ).toSet()
+        val pending = storage.getStringList(
+            LocalStorageManager.PREF_PENDING_STORE_AUTO_FREEZE
+        ).toSet()
+        val optOut = AutoFreezePackageTracker.packagesToOptOutWhenClearingAll(
+            storage.getStringList(
+                LocalStorageManager.PREF_AUTO_FREEZE_OPT_OUT_WORK_PROFILE
+            ).toList(),
+            currentPackages,
+            selected,
+            pending,
+        )
+
+        storage.setStringList(
+            LocalStorageManager.PREF_AUTO_FREEZE_OPT_OUT_WORK_PROFILE,
+            optOut.toTypedArray()
+        )
+        storage.setStringList(
+            LocalStorageManager.PREF_PENDING_STORE_AUTO_FREEZE,
+            emptyArray()
+        )
+        storage.setStringList(
+            LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
+            emptyArray()
+        )
+        AntiSpyManager.invalidateAutoFreezeListSync()
+        return selected.size
+    }
+
     /** Store install queued on the main profile until the auto-freeze list can be updated. */
     fun markPendingStoreAutoFreeze(context: Context, packageName: String) {
         if (packageName.isEmpty() || AntiSpyManager.isWorkProfile(context)) {

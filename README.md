@@ -2,9 +2,9 @@
 
 Zindan is a fork of [Shelter](https://cgit.typeblog.net/Shelter/about/) — a Free and Open-Source (FOSS) Android app that uses the **Work Profile** feature to run apps in an isolated space. You can clone apps into the work profile, freeze them when not in use, and batch-freeze the auto-freeze list from the toolbar or launcher shortcuts.
 
-**Current release:** **1.5.7** (versionCode **266**) — [latest release](https://github.com/GiorgioVik/zindan/releases/latest) · [RELEASING.md](RELEASING.md) (how release notes are built).
+**Current release:** **1.6.0** (versionCode **269**) — [latest release](https://github.com/GiorgioVik/zindan/releases/latest) · [RELEASING.md](RELEASING.md) (how release notes are built).
 
-**Default branch on GitHub:** `main` (release line 1.5.7). The old branch name `v1.5.2` is a historical label for the same fork line, not the app version.
+**Default branch on GitHub:** `main` (release line 1.6.0). The old branch name `v1.5.2` is a historical label for the same fork line, not the app version.
 
 Shelter remains the upstream base; Zindan adds branding, Russian UX polish, Anti Spy VPN handling, consistent System UI messages, and Samsung-focused field testing.
 
@@ -13,6 +13,7 @@ Shelter remains the upstream base; Zindan adds branding, Russian UX polish, Anti
 - Install or clone apps into an isolated work profile
 - Freeze / unfreeze individual apps
 - **Auto-freeze** list — apps frozen together on screen lock, batch freeze, Anti Spy VPN events, and shortcuts
+- Clear auto-freeze from every current work-profile app, including apps hidden from the normal list
 - **Batch freeze / unfreeze** from the toolbar, settings, or home-screen shortcuts
 - Frozen apps sorted to the top of the work profile list
 - Anti Spy: detect third-party VPN, prompt for batch freeze, dummy-VPN displacement on app launch
@@ -53,8 +54,16 @@ $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew.bat :app:assembleDebug
 ```
 
-The APK is written to `app/build/outputs/apk/debug/` and copied to the repo root as `Zindan-{version}-({code})-debug.apk`.  
-`version.properties` is auto-incremented on each `assemble*` task — see [BASELINE_1.5.3.md](BASELINE_1.5.3.md) to reproduce an exact build number.
+The APK is written to `app/build/outputs/apk/debug/` and copied to the repo root as `Zindan-{version}-({code})-debug.apk`.
+Builds do not change `version.properties`; update its values explicitly when starting a new build.
+
+For an update-compatible signed release and certificate verification, see
+[SIGNING.md](SIGNING.md) and run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\tools\build_local_release.ps1
+```
 
 ### Launcher icons (optional)
 

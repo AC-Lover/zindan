@@ -145,4 +145,8 @@
     <string name="work_profile_start_setup_anyway">Всё равно начать настройку</string>
     <string name="work_profile_recovery_manual_text">Zindan попросит копию приложения в рабочем профиле снова доверять этой копии в основном профиле. Используйте это только если рабочий профиль сохранился, но Zindan потерял управление.</string>
     <string name="work_profile_recovery_success">Связь с существующим рабочим профилем восстановлена.</string>
+    <string name="clear_auto_freeze_all">Снять автозаморозку у всех приложений</string>
+    <string name="clear_auto_freeze_all_warning">Автозаморозка будет снята со всех существующих приложений рабочего профиля, включая скрытые из обычного списка. Уже замороженные приложения останутся замороженными.</string>
+    <string name="clear_auto_freeze_all_confirm">Снять у всех</string>
+    <string name="clear_auto_freeze_all_success">Автозаморозка снята с приложений: %1$d.</string>
 </resources>

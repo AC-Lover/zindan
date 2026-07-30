@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.Icon
@@ -43,9 +44,11 @@ import net.typeblog.shelter.util.AntiSpyLaunchGate
 import net.typeblog.shelter.util.AntiSpyManager
 import net.typeblog.shelter.util.ApplicationInfoWrapper
 import net.typeblog.shelter.util.AutoFreezeDefaults
+import net.typeblog.shelter.util.AutoFreezePackageTracker
 import net.typeblog.shelter.util.AutoFreezePolicy
 import net.typeblog.shelter.util.LocalStorageManager
 import net.typeblog.shelter.util.Utility
+import net.typeblog.shelter.util.WorkPackageObservation
 
 class AppListFragment : BaseFragment() {
     private var service: IShelterService? = null
@@ -456,7 +459,19 @@ class AppListFragment : BaseFragment() {
 
                     var autoFreezePackages: Set<String>? = null
                     if (isRemote) {
-                        val currentPackages = apps.map { it.getPackageName() }
+                        // Package tracking must not depend on the "Show All Apps" UI filter.
+                        // The normal list already contains every installed non-system app,
+                        // while showAll also exposes system and uninstalled package records.
+                        val currentPackages = AutoFreezePackageTracker.trackablePackages(
+                            apps.map {
+                                WorkPackageObservation(
+                                    packageName = it.getPackageName(),
+                                    isSystem = it.isSystem(),
+                                    isInstalled =
+                                        it.getInfo()!!.flags and ApplicationInfo.FLAG_INSTALLED != 0,
+                                )
+                            }
+                        )
                         val currentSet = HashSet(currentPackages)
                         if (knownWorkProfilePackages != null) {
                             val removed = knownWorkProfilePackages!!.filter { it !in currentSet }
@@ -474,20 +489,6 @@ class AppListFragment : BaseFragment() {
                                     force = true
                                 )
                             }
-                        }
-                        val beforeMissingCleanup = LocalStorageManager.getInstance()
-                            .getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE)
-                        Utility.deleteMissingApps(
-                            LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE,
-                            apps
-                        )
-                        val afterMissingCleanup = LocalStorageManager.getInstance()
-                            .getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE)
-                        if (beforeMissingCleanup.size != afterMissingCleanup.size) {
-                            AntiSpyManager.syncAutoFreezeListToWorkProfile(
-                                requireContext(),
-                                force = true
-                            )
                         }
                         var autoFreezeListChanged = false
                         autoFreezeListChanged = AutoFreezeDefaults.applyDefaultsForNewPackages(

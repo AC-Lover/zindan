@@ -1,0 +1,6 @@
+# Copy to signing.properties only if you prefer a local properties file.
+# The file is ignored by Git. Environment variables are safer for automation.
+storeFile=C:/Users/you/.android/debug.keystore
+storePassword=change-me
+keyAlias=your-key-alias
+keyPassword=change-me
