@@ -42,10 +42,8 @@ import androidx.annotation.Nullable
 import androidx.core.content.ContextCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import net.typeblog.shelter.R
-import net.typeblog.shelter.receivers.AntiSpyVpnFreezeReceiver
 import net.typeblog.shelter.receivers.AppListRefreshReceiver
 import net.typeblog.shelter.receivers.ShelterDeviceAdminReceiver
-import net.typeblog.shelter.receivers.VpnWatchHeartbeatReceiver
 import net.typeblog.shelter.services.BatchFreezeService
 import net.typeblog.shelter.services.IShelterService
 import net.typeblog.shelter.ui.AppListFragment
@@ -243,86 +241,6 @@ object Utility {
             }
         } catch (e: Exception) {
             Log.w(TAG, "scheduleEnableAutoFreezeOnMainProfile failed for $packageName", e)
-        }
-    }
-
-    /**
-     * VPN-up batch freeze using the authoritative main-profile auto-freeze list.
-     * Safe from the `:vpnwatch` FGS in either profile; delivery runs in the default app process.
-     */
-    fun requestVpnBatchFreeze(context: Context) {
-        val app = context.applicationContext
-        if (AntiSpyManager.isWorkProfile(app)) {
-            scheduleVpnBatchFreezeOnMainProfile(app)
-            return
-        }
-        // `:vpnwatch` cannot reliably start cross-profile work from the main process; wake the
-        // default app process where [AntiSpyVpnFreezeReceiver] runs.
-        scheduleVpnBatchFreezeInAppProcess(app)
-        sendVpnBatchFreezeBroadcast(app)
-    }
-
-    /** Schedule [AntiSpyVpnFreezeReceiver] in the default app process (same user). */
-    private fun scheduleVpnBatchFreezeInAppProcess(context: Context) {
-        try {
-            val intent = vpnBatchFreezeReceiverIntent(context)
-            val pi = PendingIntent.getBroadcast(
-                context,
-                0xE49E4,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            val am = context.getSystemService(AlarmManager::class.java)
-            if (am != null) {
-                am.set(
-                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                    SystemClock.elapsedRealtime() + 50,
-                    pi
-                )
-                Log.i(TAG, "scheduled VPN batch freeze in app process")
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "scheduleVpnBatchFreezeInAppProcess failed", e)
-        }
-    }
-
-    /** Work profile → main profile when background broadcast is blocked. */
-    fun scheduleVpnBatchFreezeOnMainProfile(context: Context) {
-        try {
-            val intent = vpnBatchFreezeReceiverIntent(context)
-            transferIntentToProfile(context, intent)
-            val pi = PendingIntent.getBroadcast(
-                context,
-                0xE49E5,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            val am = context.getSystemService(AlarmManager::class.java)
-            if (am != null) {
-                am.set(
-                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                    SystemClock.elapsedRealtime() + 50,
-                    pi
-                )
-                Log.i(TAG, "scheduled VPN batch freeze on main profile")
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "scheduleVpnBatchFreezeOnMainProfile failed", e)
-        }
-    }
-
-    private fun vpnBatchFreezeReceiverIntent(context: Context): Intent =
-        Intent(AntiSpyVpnFreezeReceiver.ACTION).apply {
-            setPackage(context.packageName)
-            component = ComponentName(context, AntiSpyVpnFreezeReceiver::class.java)
-        }
-
-    private fun sendVpnBatchFreezeBroadcast(context: Context) {
-        try {
-            context.sendBroadcast(vpnBatchFreezeReceiverIntent(context))
-            Log.i(TAG, "VPN batch freeze broadcast sent")
-        } catch (e: Exception) {
-            Log.w(TAG, "VPN batch freeze broadcast failed", e)
         }
     }
 

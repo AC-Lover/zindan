@@ -32,10 +32,10 @@ class KillerService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        keepVpnWatchAlive()
+        stopServices()
     }
 
-    private fun keepVpnWatchAlive() {
+    private fun stopServices() {
         try {
             serviceWork?.stopShelterService(true)
         } catch (_: Exception) {
@@ -44,7 +44,6 @@ class KillerService : Service() {
             serviceMain?.stopShelterService(false)
         } catch (_: Exception) {
         }
-        AntiSpyVpnWatchService.syncState(applicationContext)
         stopSelf()
     }
 }

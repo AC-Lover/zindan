@@ -22,7 +22,6 @@ import androidx.core.content.ContextCompat
 import net.typeblog.shelter.R
 import net.typeblog.shelter.ShelterApplication
 import net.typeblog.shelter.receivers.ShelterDeviceAdminReceiver
-import net.typeblog.shelter.services.AntiSpyVpnWatchService
 import net.typeblog.shelter.services.FreezeService
 import net.typeblog.shelter.services.IAppInstallCallback
 import net.typeblog.shelter.services.IFileShuttleService
@@ -720,12 +719,9 @@ class DummyActivity : Activity() {
                 finish()
                 return
             }
-            // Persist the authoritative list into the work profile so the work-profile VPN
-            // watcher can freeze on its own when a VPN comes up later (it is the only context
-            // privileged to call DevicePolicyManager; cross-profile starts from personal are denied).
+            // Persist the authoritative list into the work profile.
             LocalStorageManager.getInstance()
                 .setStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE, list)
-            AntiSpyVpnWatchService.syncState(this)
             val result = WorkProfileBatchFreeze.freezeListWithResult(this, list)
             WorkProfileBatchFreeze.persistLastBatchResult(this, result)
             if (result.allHidden) {

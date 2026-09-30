@@ -44,10 +44,6 @@ class ShelterService : Service() {
                 (application as ShelterApplication).unbindShelterService()
 
                 if (kill && !(isProfileOwner && FreezeService.hasPendingAppToFreeze())) {
-                    if (isProfileOwner) {
-                        // Keep work process alive for Anti Spy VPN monitoring.
-                        return@Thread
-                    }
                     System.exit(0)
                 }
             }.start()
@@ -259,9 +255,6 @@ class ShelterService : Service() {
                 R.drawable.ic_notification_zindan_24dp,
             ),
         )
-        if (isProfileOwner) {
-            AntiSpyVpnWatchService.syncState(this)
-        }
     }
 
     companion object {

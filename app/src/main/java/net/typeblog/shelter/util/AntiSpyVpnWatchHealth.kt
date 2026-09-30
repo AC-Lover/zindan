@@ -1,11 +1,7 @@
 package net.typeblog.shelter.util
 
-import android.app.AlarmManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import net.typeblog.shelter.R
-import net.typeblog.shelter.receivers.AntiSpyVpnWatchWatchdogReceiver
 
 /**
  * Heartbeat + watchdog for :vpnwatch — completely disabled.
@@ -34,33 +30,13 @@ object AntiSpyVpnWatchHealth {
     fun formatStatusLine(context: Context, mainProfile: Boolean): String =
         context.getString(R.string.settings_vpn_watch_status_never)
 
-    fun scheduleWatchdog(context: Context) {
-        cancelWatchdog(context)
-    }
+    fun scheduleWatchdog(context: Context) {}
 
-    fun cancelWatchdog(context: Context) {
-        try {
-            val app = context.applicationContext
-            val am = app.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
-            val intent = Intent(app, AntiSpyVpnWatchWatchdogReceiver::class.java).apply {
-                action = ACTION_WATCHDOG
-            }
-            val pi = PendingIntent.getBroadcast(
-                app,
-                0xE49E8,
-                intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            am.cancel(pi)
-            pi.cancel()
-        } catch (_: Exception) {}
-    }
+    fun cancelWatchdog(context: Context) {}
 
     fun scheduleFgsRetry(context: Context) {}
 
     fun runWatchdog(context: Context) {}
 
-    fun restartMonitoring(context: Context) {
-        cancelWatchdog(context)
-    }
+    fun restartMonitoring(context: Context) {}
 }

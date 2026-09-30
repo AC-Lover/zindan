@@ -5,7 +5,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.util.Log
-import net.typeblog.shelter.services.AntiSpyVpnWatchService
 import net.typeblog.shelter.ui.DummyActivity
 
 /**
