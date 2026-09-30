@@ -18,6 +18,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    environment: APK
     steps:
       - name: Resolve tag
         id: meta
