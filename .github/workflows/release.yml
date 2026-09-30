@@ -48,8 +48,6 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
-
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
@@ -62,13 +60,35 @@ jobs:
           sed -i "s/^VERSION_NAME=.*/VERSION_NAME=${VERSION}/" version.properties
           grep VERSION version.properties
 
-      - name: Assemble debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace --no-daemon
-
-      - name: Locate APK
-        id: apk
+      - name: Build APK
+        id: build
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          APK=$(ls app/build/outputs/apk/debug/Zindan-*.apk | head -1)
+          if [ -n "${KEYSTORE_BASE64}" ]; then
+            echo "Keystore secret detected, building signed Release APK..."
+            echo "${KEYSTORE_BASE64}" | base64 -d > release.keystore
+            export ZINDAN_KEYSTORE_PATH="release.keystore"
+            export ZINDAN_KEYSTORE_PASSWORD="${KEYSTORE_PASSWORD}"
+            export ZINDAN_KEY_ALIAS="${KEY_ALIAS}"
+            export ZINDAN_KEY_PASSWORD="${KEY_PASSWORD}"
+            ./gradlew :app:assembleRelease --stacktrace --no-daemon
+            APK=$(ls app/build/outputs/apk/release/Zindan-*.apk 2>/dev/null | head -1)
+          else
+            echo "No keystore secret found, building Debug APK..."
+            ./gradlew :app:assembleDebug --stacktrace --no-daemon
+            APK=$(ls app/build/outputs/apk/debug/Zindan-*.apk 2>/dev/null | head -1)
+          fi
+
+          if [ -z "${APK}" ] || [ ! -f "${APK}" ]; then
+            echo "Error: APK build output not found!" >&2
+            exit 1
+          fi
+
+          echo "APK generated at: ${APK}"
           echo "path=${APK}" >> "$GITHUB_OUTPUT"
           echo "name=$(basename "${APK}")" >> "$GITHUB_OUTPUT"
 
@@ -94,5 +114,5 @@ jobs:
           tag_name: ${{ steps.meta.outputs.tag }}
           name: ${{ steps.meta.outputs.title }}
           body_path: release-notes.md
-          files: ${{ steps.apk.outputs.path }}
+          files: ${{ steps.build.outputs.path }}
           make_latest: true
