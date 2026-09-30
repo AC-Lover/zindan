@@ -1,20 +1,22 @@
-name: Release tag check
+name: Release
 
 on:
   push:
     tags:
       - 'v*-*'
+      - 'v*.*.*'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v1.5.8-267)'
+        description: 'Release tag (e.g. v1.6.1-270)'
         required: true
+        default: 'v1.6.1-270'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  verify-tag:
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: Resolve tag
@@ -26,18 +28,71 @@ jobs:
             TAG="${GITHUB_REF_NAME}"
           fi
           VERSION=$(echo "${TAG}" | sed 's/^v//' | sed 's/-[^-]*$//')
-          CODE="${TAG##*-}"
+          if echo "${TAG}" | grep -q -- '-'; then
+            CODE="${TAG##*-}"
+          else
+            CODE=$(grep "^VERSION_CODE=" version.properties 2>/dev/null | cut -d'=' -f2 || echo "270")
+          fi
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "code=${CODE}" >> "$GITHUB_OUTPUT"
+          echo "title=Zindan ${VERSION} (${CODE})" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@v4
         with:
           submodules: recursive
           ref: ${{ steps.meta.outputs.tag }}
 
-      - name: Verify version.properties
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Pin version code from tag
         run: |
-          grep -qx "VERSION_NAME=${{ steps.meta.outputs.version }}" version.properties
-          grep -qx "VERSION_CODE=${{ steps.meta.outputs.code }}" version.properties
-          echo "Tag and version.properties match. Signed APK is published locally."
+          CODE="${{ steps.meta.outputs.code }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          echo "Building versionCode ${CODE} (${VERSION})"
+          sed -i "s/^VERSION_CODE=.*/VERSION_CODE=${CODE}/" version.properties
+          sed -i "s/^VERSION_NAME=.*/VERSION_NAME=${VERSION}/" version.properties
+          grep VERSION version.properties
+
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug --stacktrace --no-daemon
+
+      - name: Locate APK
+        id: apk
+        run: |
+          APK=$(ls app/build/outputs/apk/debug/Zindan-*.apk | head -1)
+          echo "path=${APK}" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "${APK}")" >> "$GITHUB_OUTPUT"
+
+      - name: Write release notes
+        run: |
+          chmod +x tools/extract_release_notes.sh || true
+          if [ -f "tools/extract_release_notes.sh" ] && tools/extract_release_notes.sh "${{ steps.meta.outputs.tag }}" "${{ github.repository }}" > release-notes.md 2>/dev/null; then
+            echo "Release notes written ($(wc -l < release-notes.md) lines)"
+          else
+            cat > release-notes.md <<EOF
+          ## Zindan ${{ steps.meta.outputs.version }} (${{ steps.meta.outputs.code }})
+
+          Release built from tag \`${{ steps.meta.outputs.tag }}\`.
+
+          - VPN checking completely disabled/removed.
+          EOF
+          fi
+          head -20 release-notes.md
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.title }}
+          body_path: release-notes.md
+          files: ${{ steps.apk.outputs.path }}
+          make_latest: true

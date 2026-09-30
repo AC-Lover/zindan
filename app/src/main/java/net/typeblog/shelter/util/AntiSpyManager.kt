@@ -67,12 +67,10 @@ object AntiSpyManager {
         }
     }
 
-    /** Start/stop VPN watcher in main and work profiles. */
+    /** Start/stop VPN watcher in main and work profiles (VPN watch disabled). */
     fun syncVpnWatchEverywhere(context: Context) {
-        AntiSpyVpnWatchService.syncState(context)
         if (!isWorkProfile(context)) {
             syncAutoFreezeListToWorkProfile(context)
-            AntiSpyVpnWatchHealth.scheduleWatchdog(context)
         }
     }
 

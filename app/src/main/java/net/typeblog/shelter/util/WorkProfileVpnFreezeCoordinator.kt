@@ -7,8 +7,7 @@ import android.os.SystemClock
 import android.util.Log
 
 /**
- * Single in-flight VPN batch-freeze job in the work profile with bounded retries.
- * Prevents duplicate work when receiver, [BatchFreezeService], and :vpnwatch fire together.
+ * Single in-flight batch-freeze job in the work profile with bounded retries.
  */
 object WorkProfileVpnFreezeCoordinator {
     private const val TAG = "VpnFreezeCoord"
@@ -28,7 +27,7 @@ object WorkProfileVpnFreezeCoordinator {
         lastAttemptElapsedMs = 0L
         activeSessionId = SystemClock.elapsedRealtime()
         handler.removeCallbacksAndMessages(null)
-        Log.d(TAG, "VPN freeze session reset id=$activeSessionId")
+        Log.d(TAG, "freeze session reset id=$activeSessionId")
     }
 
     fun markSessionComplete() {
@@ -39,9 +38,6 @@ object WorkProfileVpnFreezeCoordinator {
     /** Called before [BatchFreezeService] freeze; reopens session if apps are still visible. */
     fun prepareForVpnBatch(context: Context, list: Array<String>) {
         if (!AntiSpyManager.isWorkProfile(context)) {
-            return
-        }
-        if (!VpnTunnelDetector.isVpnActive(context)) {
             return
         }
         val normalized = Utility.normalizeStringList(list)
@@ -104,11 +100,6 @@ object WorkProfileVpnFreezeCoordinator {
                 inFlight = false
                 return@post
             }
-            if (!VpnTunnelDetector.isVpnActive(context)) {
-                Log.d(TAG, "cancel: vpn no longer active ($source)")
-                inFlight = false
-                return@post
-            }
             val result = WorkProfileBatchFreeze.freezeListWithResult(context, list)
             WorkProfileBatchFreeze.persistLastBatchResult(context, result)
             if (result.allHidden) {
@@ -118,7 +109,7 @@ object WorkProfileVpnFreezeCoordinator {
                 Log.i(TAG, "complete from $source attempt=$attempt")
                 return@post
             }
-            if (attempt + 1 < MAX_RETRIES && VpnTunnelDetector.isVpnActive(context)) {
+            if (attempt + 1 < MAX_RETRIES) {
                 Log.i(
                     TAG,
                     "retry ${attempt + 1}/${MAX_RETRIES} stillVisible=" +

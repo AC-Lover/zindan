@@ -23,6 +23,5 @@ class AntiSpyBootReceiver : BroadcastReceiver() {
         AntiSpyManager.onDeviceBoot(storage)
         Utility.trimApplicationCache(app)
         AntiSpyManager.syncVpnWatchEverywhere(app)
-        AntiSpyVpnWatchHealth.scheduleWatchdog(app)
     }
 }

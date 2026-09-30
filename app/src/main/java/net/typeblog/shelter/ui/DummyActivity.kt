@@ -253,10 +253,6 @@ class DummyActivity : Activity() {
     }
 
     private fun actionInstallPackage() {
-        if (isProfileOwner && VpnTunnelDetector.isVpnActive(this)) {
-            abortInstallBlockedByVpn()
-            return
-        }
         capturePendingPackageOperation(OperationType.INSTALL)
         var uri: Uri? = null
         if (intent.hasExtra("package")) {
@@ -304,14 +300,6 @@ class DummyActivity : Activity() {
 
         val session = pi.openSession(sessionId)
         doInstallPackageQ(uri, splitApks, session) {
-            if (isProfileOwner && VpnTunnelDetector.isVpnActive(this)) {
-                try {
-                    session.abandon()
-                } catch (_: Exception) {
-                }
-                abortInstallBlockedByVpn()
-                return@doInstallPackageQ
-            }
             session.setStagingProgress(0.1f)
             val callbackIntent = Intent(this, DummyActivity::class.java).apply {
                 action = PACKAGEINSTALLER_CALLBACK
@@ -479,19 +467,9 @@ class DummyActivity : Activity() {
                 return
             }
             pendingUnfreezeLaunch = request
-            if (!ensureAntiSpyVpnPermissionThenLaunch()) {
-                return
-            }
-            val proceed = Runnable {
-                forwardUnfreezeAndLaunchToWorkProfile(request)
-                pendingUnfreezeLaunch = null
-                finish()
-            }
-            if (AntiSpyLaunchGate.shouldApplyVpnGate(request.packageName)) {
-                runAntiSpyLaunchGate()
-            } else {
-                proceed.run()
-            }
+            forwardUnfreezeAndLaunchToWorkProfile(request)
+            pendingUnfreezeLaunch = null
+            finish()
             return
         }
 
@@ -531,19 +509,7 @@ class DummyActivity : Activity() {
         finish()
     }
 
-    private fun ensureAntiSpyVpnPermissionThenLaunch(): Boolean {
-        val storage = LocalStorageManager.getInstance()
-        if (!AntiSpyLaunchGate.needsVpnClear(this, storage)) {
-            return true
-        }
-        val prepare = VpnService.prepare(this)
-        if (prepare == null) {
-            return true
-        }
-        @Suppress("DEPRECATION")
-        startActivityForResult(prepare, REQUEST_ANTI_SPY_VPN)
-        return false
-    }
+    private fun ensureAntiSpyVpnPermissionThenLaunch(): Boolean = true
 
     private fun runAntiSpyLaunchGate() {
         val request = pendingUnfreezeLaunch ?: captureUnfreezeLaunchRequest(intent) ?: run {
@@ -719,30 +685,8 @@ class DummyActivity : Activity() {
     }
 
     private fun actionUnfreezeAppAfterVpnCheck(packageName: String) {
-        if (!ensureAntiSpyVpnPermissionThenLaunch()) {
-            return
-        }
-        val proceed = Runnable {
-            forwardUnfreezeAppToWorkProfile(packageName)
-            finish()
-        }
-        if (AntiSpyLaunchGate.shouldApplyVpnGate(packageName)) {
-            AntiSpyLaunchGate.runBeforeLaunch(
-                this, LocalStorageManager.getInstance(), packageName,
-                proceed,
-                { reason ->
-                    if (reason == AntiSpyLaunchGate.REASON_VPN_PERMISSION_REQUIRED) {
-                        if (ensureAntiSpyVpnPermissionThenLaunch()) {
-                            actionUnfreezeApp()
-                        }
-                        return@runBeforeLaunch
-                    }
-                    finish()
-                }
-            )
-        } else {
-            proceed.run()
-        }
+        forwardUnfreezeAppToWorkProfile(packageName)
+        finish()
     }
     private fun forwardUnfreezeAppToWorkProfile(packageName: String) {
         val forwardIntent = Intent(UNFREEZE_APP)
@@ -761,30 +705,13 @@ class DummyActivity : Activity() {
     }
 
     private fun actionPublicUnfreezeAllAfterVpnCheck() {
-        if (!ensureAntiSpyVpnPermissionThenLaunch()) {
-            return
-        }
-        AntiSpyLaunchGate.runBeforeLaunch(
-            this, LocalStorageManager.getInstance(), "",
-            {
-                val forwardIntent = Intent(UNFREEZE_ALL_IN_LIST)
-                val list = LocalStorageManager.getInstance()
-                    .getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE)
-                forwardIntent.putExtra("list", list)
-                Utility.transferIntentToProfile(this, forwardIntent)
-                startActivity(forwardIntent)
-                finishBatchShortcutFlow()
-            },
-            { reason ->
-                if (reason == AntiSpyLaunchGate.REASON_VPN_PERMISSION_REQUIRED) {
-                    if (ensureAntiSpyVpnPermissionThenLaunch()) {
-                        actionPublicUnfreezeAll()
-                    }
-                    return@runBeforeLaunch
-                }
-                finish()
-            }
-        )
+        val forwardIntent = Intent(UNFREEZE_ALL_IN_LIST)
+        val list = LocalStorageManager.getInstance()
+            .getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE)
+        forwardIntent.putExtra("list", list)
+        Utility.transferIntentToProfile(this, forwardIntent)
+        startActivity(forwardIntent)
+        finishBatchShortcutFlow()
     }
 
     private fun actionFreezeAllInList() {
@@ -912,7 +839,6 @@ class DummyActivity : Activity() {
                     storage.setStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE, list)
                 }
             }
-            AntiSpyVpnWatchService.syncState(this)
         }
         finish()
     }

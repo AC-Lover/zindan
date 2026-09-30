@@ -74,6 +74,7 @@
             android:excludeFromRecents="true"
             android:launchMode="singleTask"
             android:exported="false"
+            android:enabled="false"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
             android:showOnLockScreen="true"
@@ -141,7 +142,8 @@
         </receiver>
 
         <receiver android:name=".receivers.AntiSpyVpnFreezeReceiver"
-            android:exported="false">
+            android:exported="false"
+            android:enabled="false">
             <intent-filter>
                 <action android:name="net.typeblog.shelter.action.VPN_BATCH_FREEZE" />
             </intent-filter>
@@ -155,7 +157,8 @@
         </receiver>
 
         <receiver android:name=".receivers.AntiSpyVpnWatchWatchdogReceiver"
-            android:exported="false">
+            android:exported="false"
+            android:enabled="false">
             <intent-filter>
                 <action android:name="net.typeblog.shelter.action.VPN_WATCH_WATCHDOG" />
                 <action android:name="net.typeblog.shelter.action.VPN_WATCH_FGS_RETRY" />
@@ -163,7 +166,8 @@
         </receiver>
 
         <receiver android:name=".receivers.VpnWatchHeartbeatReceiver"
-            android:exported="false">
+            android:exported="false"
+            android:enabled="false">
             <intent-filter>
                 <action android:name="net.typeblog.shelter.action.VPN_WATCH_HEARTBEAT" />
             </intent-filter>
@@ -239,6 +243,7 @@
 
         <service android:name=".services.AntiSpyVpnWatchService"
             android:exported="false"
+            android:enabled="false"
             android:process=":vpnwatch"
             android:stopWithTask="false"
             android:foregroundServiceType="specialUse">
@@ -258,6 +263,7 @@
 
         <service android:name=".services.AntiSpyDummyVpnService"
             android:exported="false"
+            android:enabled="false"
             android:process=":vpnwatch"
             android:permission="android.permission.BIND_VPN_SERVICE">
             <intent-filter>

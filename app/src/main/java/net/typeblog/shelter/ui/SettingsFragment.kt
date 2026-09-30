@@ -103,8 +103,10 @@ class SettingsFragment : PreferenceFragmentCompat(), Preference.OnPreferenceChan
             .setOnPreferenceClickListener(this::createUnfreezeAllShortcut)
 
         prefVpnWatchHealth = findPreference(SETTINGS_VPN_WATCH_HEALTH)
-        prefVpnWatchHealth!!.setOnPreferenceClickListener(this::restartVpnWatch)
-        updateVpnWatchHealthSummary()
+        prefVpnWatchHealth?.setOnPreferenceClickListener(this::restartVpnWatch)
+        if (prefVpnWatchHealth != null) {
+            updateVpnWatchHealthSummary()
+        }
 
         findPreference<Preference>(SETTINGS_RESTORE_WORK_PROFILE)!!
             .setOnPreferenceClickListener(this::restoreWorkProfileConnection)

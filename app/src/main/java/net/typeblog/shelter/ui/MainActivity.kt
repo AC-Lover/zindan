@@ -670,41 +670,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun runAfterVpnGateCleared(packageName: String, forceGate: Boolean, action: Runnable) {
-        AntiSpyLaunchGate.runBeforeAutoFreezeAccess(
-            this,
-            LocalStorageManager.getInstance(),
-            packageName,
-            forceGate,
-            action,
-            AntiSpyLaunchGate.BlockedCallback { reason ->
-                pendingVpnBlockReason = reason
-                showAntiSpyVpnLaunchBlockedDialog(reason)
-                if (reason == AntiSpyLaunchGate.REASON_VPN_PERMISSION_REQUIRED) {
-                    requestAntiSpyVpnPermission()
-                }
-            }
-        )
+        action.run()
     }
 
-    /** Anti Spy: block APK install while VPN is active (do not displace the tunnel). */
+    /** Install APK directly without VPN gating. */
     private fun runInstallApkAfterVpnGateCleared() {
-        pendingApkInstallAfterVpnGate = true
-        AntiSpyLaunchGate.runBeforeAutoFreezeAccess(
-            this,
-            LocalStorageManager.getInstance(),
-            "",
-            forceGate = true,
-            Runnable {
-                pendingApkInstallAfterVpnGate = false
-                selectApk.launch(null)
-            },
-            AntiSpyLaunchGate.BlockedCallback { reason ->
-                pendingVpnBlockReason = reason
-                showAntiSpyVpnLaunchBlockedDialog(reason)
-                pendingApkInstallAfterVpnGate = false
-            },
-            AntiSpyLaunchGate.VpnGateMode.BLOCK_IF_ACTIVE,
-        )
+        selectApk.launch(null)
     }
 
     private fun requestAntiSpyNotificationPermissionIfNeeded() {
