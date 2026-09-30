@@ -44,7 +44,6 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import net.typeblog.shelter.R
 import net.typeblog.shelter.receivers.AppListRefreshReceiver
 import net.typeblog.shelter.receivers.ShelterDeviceAdminReceiver
-import net.typeblog.shelter.services.BatchFreezeService
 import net.typeblog.shelter.services.IShelterService
 import net.typeblog.shelter.ui.AppListFragment
 import net.typeblog.shelter.ui.DummyActivity
@@ -91,18 +90,6 @@ object Utility {
             Log.w(TAG, "launchFreezeInWorkProfile failed", e)
             false
         }
-    }
-
-    /**
-     * Background delivery: start [BatchFreezeService] in the work profile (no Activity).
-     */
-    fun startBatchFreezeInWorkProfile(context: Context, list: Array<String>): Boolean {
-        val normalized = normalizeStringList(list)
-        if (normalized.isEmpty()) {
-            return false
-        }
-        val intent = BatchFreezeService.buildIntent(context.applicationContext, normalized)
-        return startServiceInManagedProfile(context.applicationContext, intent)
     }
 
     /**
@@ -796,18 +783,6 @@ object Utility {
         manager.addCrossProfileIntentFilter(
             adminComponent,
             IntentFilter(DummyActivity.VPN_SESSION_COMPLETE),
-            DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED
-        )
-
-        manager.addCrossProfileIntentFilter(
-            adminComponent,
-            IntentFilter(DummyActivity.VPN_WATCH_HEARTBEAT),
-            DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED
-        )
-
-        manager.addCrossProfileIntentFilter(
-            adminComponent,
-            IntentFilter(BatchFreezeService.ACTION),
             DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED
         )
 

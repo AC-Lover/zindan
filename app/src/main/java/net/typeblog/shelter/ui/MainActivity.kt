@@ -43,7 +43,6 @@ import net.typeblog.shelter.services.IAppInstallCallback
 import net.typeblog.shelter.services.IGetAppsCallback
 import net.typeblog.shelter.services.IShelterService
 import net.typeblog.shelter.services.IStartActivityProxy
-import net.typeblog.shelter.services.KillerService
 import net.typeblog.shelter.util.AntiSpyLaunchGate
 import net.typeblog.shelter.util.AuthenticationUtility
 import net.typeblog.shelter.util.AntiSpyManager
@@ -81,10 +80,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     private val postNotificationsPermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) {
-                AntiSpyManager.syncVpnWatchEverywhere(this)
-            }
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { _ ->
         }
 
     private var storage: LocalStorageManager? = null
@@ -377,10 +373,8 @@ class MainActivity : AppCompatActivity() {
             workProfileRecoveryInProgress = false
             pendingRecoverySuccessToast = false
             registerStartActivityProxies()
-            startKiller()
             window.decorView.post {
                 runAntiSpyStartupFreezeIfNeeded()
-                AntiSpyManager.syncVpnWatchEverywhere(this@MainActivity)
                 runPendingBatchShortcutAction()
                 startWorkListPolling()
                 if (showRecoveryToast) {
@@ -505,17 +499,6 @@ class MainActivity : AppCompatActivity() {
         }
         AntiSpyManager.clearStartupFreezePending(s)
         AntiSpyManager.runBatchFreezeAll(this)
-        AntiSpyManager.syncVpnWatchEverywhere(this)
-    }
-
-    private fun startKiller() {
-        val intent = Intent(this, KillerService::class.java)
-        val bundle = Bundle().apply {
-            putBinder("main", serviceMain!!.asBinder())
-            putBinder("work", serviceWork!!.asBinder())
-        }
-        intent.putExtra("extra", bundle)
-        startService(intent)
     }
 
     private fun buildView() {
@@ -592,7 +575,6 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         isResumed = true
         visibleInstance = this
-        AntiSpyManager.syncVpnWatchEverywhere(this)
         if (pendingVpnBlockReason != 0) {
             val reason = pendingVpnBlockReason
             pendingVpnBlockReason = 0
@@ -635,7 +617,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun doOnDestroy() {
-        stopService(Intent(this, KillerService::class.java))
         try {
             serviceWork?.stopShelterService(true)
         } catch (_: Exception) {
@@ -644,7 +625,6 @@ class MainActivity : AppCompatActivity() {
             serviceMain?.stopShelterService(false)
         } catch (_: Exception) {
         }
-        AntiSpyManager.syncVpnWatchEverywhere(applicationContext)
     }
 
     override fun onTrimMemory(level: Int) {

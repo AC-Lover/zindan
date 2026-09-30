@@ -35,7 +35,7 @@ object WorkProfileVpnFreezeCoordinator {
         inFlight = false
     }
 
-    /** Called before [BatchFreezeService] freeze; reopens session if apps are still visible. */
+    /** Reopens session if apps are still visible. */
     fun prepareForVpnBatch(context: Context, list: Array<String>) {
         if (!AntiSpyManager.isWorkProfile(context)) {
             return

@@ -117,24 +117,14 @@ object AntiSpyManager {
             return freezeInWorkProfile(app, list, delivery)
         }
 
-        if (delivery == AutoFreezeDelivery.FOREGROUND) {
-            return if (launchPublicFreezeAll(context)) {
-                Utility.scheduleAppListRefresh(context)
-                Log.d(TAG, "auto-freeze requested (foreground)")
-                -1
-            } else {
-                Log.w(TAG, "auto-freeze foreground launch failed")
-                0
-            }
-        }
-
-        if (Utility.startBatchFreezeInWorkProfile(app, list)) {
-            Log.i(TAG, "auto-freeze via BatchFreezeService (background), list=${list.size}")
+        if (launchPublicFreezeAll(context)) {
+            Utility.scheduleAppListRefresh(context)
+            Log.d(TAG, "auto-freeze requested")
+            return -1
         } else {
-            Log.w(TAG, "BatchFreezeService failed, AlarmManager fallback")
-            Utility.scheduleFreezeInWorkProfile(app, list)
+            Log.w(TAG, "auto-freeze foreground launch failed")
+            return 0
         }
-        return -1
     }
 
     private fun freezeInWorkProfile(
